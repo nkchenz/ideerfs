@@ -5,8 +5,8 @@ import socket
 import sys
 import time
 import thread
-import daemon
 import syslog
+import signal
 
 
 host = 'localhost'                 # Symbolic name meaning the local host
@@ -15,9 +15,10 @@ backlog = 128
 welcome = 'Welcome to ideerfs, Friends!\n'
 
 # Make sure you have write permission of these files, abosolute path please
-pid_file = '/home/master/ideerfs.pid'
-log_file = '/home/master/ideerfs.log'
+pid_file = 'ideerfs.pid'
+log_file = 'ideerfs.log'
 
+shutdown = False
 
 def usage():
     print 'ideerfs [start | stop]'
@@ -25,6 +26,8 @@ def usage():
 
 def server_init():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # For socket.error: (98, 'Address already in use')
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
     s.bind((host, port))
     return s
 
@@ -40,14 +43,16 @@ def worker(conn):
 
 def server_start(s):
     s.listen(backlog)
-    try:
-        while True:
-            conn = s.accept()
-            thread.start_new_thread(worker, (conn,))
-    except:
-        # Release port
-        s.close()
-        raise
+    while True:
+        if shutdown:
+            break
+        conn = s.accept()
+        thread.start_new_thread(worker, (conn,))
+    # Release port
+    s.close()
+
+def cleanup(s, f):
+    shutdown = True
 
 
 if len(sys.argv) != 2 or sys.argv[1] not in ['start', 'stop']:
@@ -59,6 +64,7 @@ if sys.argv[1] == 'stop':
         sys.exit(-1)
     os.system('kill -9 %s' % open(pid_file, 'r').read())
     os.remove(pid_file)
+    print 'stop ok'
     sys.exit(0)
     
 if sys.argv[1] == 'start':
@@ -66,12 +72,11 @@ if sys.argv[1] == 'start':
         print 'Already started? Found pid file', pid_file
         sys.exit(-1)
 
-
     s = server_init()
 
     if os.fork() > 0:
         sys.exit(0)
-    os.chdir("/") 
+    #os.chdir("/") 
     os.umask(0) 
     os.setsid() 
     if os.fork() > 0:
@@ -80,6 +85,9 @@ if sys.argv[1] == 'start':
     pid = '%s' % os.getpid()
     print pid
     open(pid_file, 'w+').write(pid)
+
+    signal.signal(signal.SIGTERM, cleanup)
+    signal.signal(signal.SIGINT, cleanup)
 
     server_start(s)
 
@@ -93,29 +101,4 @@ for i in range(int(opt.threads)):
     map(lambda p: p.start(), pool)
     map(lambda p: p.join(), pool)
 
-
-    try:
-	s = socket.socket(af, socktype, proto)
-    except socket.error, msg:
-	s = None
-	continue
-    try:
-	s.bind(sa)
-	s.listen(1)
-    except socket.error, msg:
-	s.close()
-	s = None
-	continue
-    break
-
-if s is None:
-    print 'could not open socket'
-    sys.exit(1)
-conn, addr = s.accept()
-print 'Connected by', addr
-while 1:
-    data = conn.recv(1024)
-    if not data: break
-    conn.send(data)
-conn.close()
 '''
