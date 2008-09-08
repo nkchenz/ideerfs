@@ -33,18 +33,18 @@ def server_init():
 
 def worker(conn):
     s, addr = conn
-    s.send(welcome)
+    #s.send(welcome)
     while True:
         data = s.recv(1024)
         if not data:
             break
-        s.send(time.ctime() + ' ' + data)
+        s.send(data)
     s.close()
 
 def server_start(s):
     s.listen(backlog)
     while True:
-        if shutdown:
+        if shutdown: # Gracefully shutdown server
             break
         conn = s.accept()
         thread.start_new_thread(worker, (conn,))
