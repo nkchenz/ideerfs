@@ -1,22 +1,14 @@
 #!/usr/bin/python
+# coding: utf8
 
 import os
 import socket
 import sys
-import time
 import thread
-import syslog
 import signal
-
-
-host = 'localhost'                 # Symbolic name meaning the local host
-port = 51984              # Arbitrary non-privileged port
-backlog = 128
-welcome = 'Welcome to ideerfs, Friends!\n'
-
-# Make sure you have write permission of these files, abosolute path please
-pid_file = 'ideerfs.pid'
-log_file = 'ideerfs.log'
+from conf import *
+from msg import *
+from conn import *
 
 shutdown = False
 
@@ -28,21 +20,30 @@ def server_init():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # For socket.error: (98, 'Address already in use')
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
-    s.bind((host, port))
+    s.bind((LISTEN_ADDRESS, IDEERFS_PORT))
     return s
 
 def worker(conn):
     s, addr = conn
-    #s.send(welcome)
+    client = Conn(s)
+    print 'Connected from', addr
+
+    # 发送欢迎信息
+    w = Message()
+    w.cmd = 'welcome'
+    w.info = WELCOME
+    client.send(w)
+
     while True:
-        data = s.recv(1024)
-        if not data:
+        msg = client.recv()
+        if not msg or msg.cmd == 'bye':
             break
-        s.send(data)
-    s.close()
+        client.send(msg)
+    client.close()
+    print addr, 'bye'
 
 def server_start(s):
-    s.listen(backlog)
+    s.listen(MAX_WAITING_CLIENTS)
     while True:
         if shutdown: # Gracefully shutdown server
             break
@@ -59,21 +60,23 @@ if len(sys.argv) != 2 or sys.argv[1] not in ['start', 'stop']:
     usage()
 
 if sys.argv[1] == 'stop':
-    if not os.path.isfile(pid_file):
-        print 'Not found pid file', pid_file
+    if not os.path.isfile(PID_FILE):
+        print 'Not found pid file', PID_FILE
         sys.exit(-1)
-    os.system('kill -9 %s' % open(pid_file, 'r').read())
-    os.remove(pid_file)
+    os.system('kill -9 %s' % open(PID_FILE, 'r').read())
+    os.remove(PID_FILE)
     print 'stop ok'
     sys.exit(0)
     
 if sys.argv[1] == 'start':
-    if os.path.isfile(pid_file):
-        print 'Already started? Found pid file', pid_file
-        sys.exit(-1)
+    #if os.path.isfile(PID_FILE):
+    #    print 'Already started? Found pid file', PID_FILE
+    #    sys.exit(-1)
 
     s = server_init()
 
+    # 转换为后台进程
+    """
     if os.fork() > 0:
         sys.exit(0)
     #os.chdir("/") 
@@ -81,10 +84,11 @@ if sys.argv[1] == 'start':
     os.setsid() 
     if os.fork() > 0:
         sys.exit(0)
-    
+    """
+
     pid = '%s' % os.getpid()
     print pid
-    open(pid_file, 'w+').write(pid)
+    open(PID_FILE, 'w+').write(pid)
 
     signal.signal(signal.SIGTERM, cleanup)
     signal.signal(signal.SIGINT, cleanup)
