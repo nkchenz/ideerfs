@@ -1,3 +1,36 @@
+{
+'version': 1,
+'cmd': 'ls',
+'dir': '.',
+....
+}
+
+fasdlfkasd
+a
+sd
+fa
+sd
+fa
+sd
+fa
+sd
+fa
+sdf
+asd
+fas
+dfa
+sd
+
+
+
+
+
+对node分配ID，'MDS' hash到一个固定的地方p，所有的mds向这个地址注册自己
+有点类似于mgs的意思
+
+如果系统中的活动mds个数低于某个值，节点p指定别的节点做为mds
+
+
 Feature:
 meta data is treated the same as object data
 elect another mds server if it's dead, no single point failure
@@ -13,7 +46,83 @@ lustre: high-end hardware, high-speed network
 
 meta data network
 basket: don't put all your eggs in one basket
+情景简化：
+    一个nas集群，多个物理上临近的节点构成的存储集群
 
+设定最大mds数目
+开始可以指定一个节点为mds，然后自动指定某一个节点为mds，文件查询服务器indexer
+目录查询服务器 dirserver
+DirServer
+ObjServer
+
+DIRServer
+OBJServer
+
+
+Locatation Server
+
+MetaDataServer
+
+Object
+NameServer
+SearchServer
+
+
+DataSet:
+    
+
+DIRServer
+
+
+
+# Search
+Search(DataSet, Filter, Recursive)
+Lookup(Path)
+Open()
+Read()
+Write()
+Close()
+
+
+
+Key, Value
+
+packet layer
+message layer
+
+
+             IDEERFS       P2P
+
+               MDS         DHT       
+
+             Object Storage Layer
+
+
+
+
+
+
+callback:
+    status
+    done
+    error
+    length
+
+
+消息传递层：
+    消息发送过程
+
+
+write_from_localfile(file, offset, len, localfile, localoffset)
+     for buf in read localfile:
+  	write(buf, file, offset)
+
+
+
+
+
+
+send_file()
 
 worker-module threads
 
