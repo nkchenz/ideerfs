@@ -11,8 +11,9 @@ class MessageChannel:
     A message channel for peers
     """
 
-    def __init__(self, sk):
+    def __init__(self, sk, host):
         self.sk = sk
+        self.host = host
         self.msg_sn = 0 # Serial number for messages on this channel
 
     def close(self):
@@ -77,4 +78,4 @@ def NewChannel(ip, port):
     except socket.error, err:
         print 'error:', err
         return None
-    return MessageChannel(sk)
+    return MessageChannel(sk, ip)

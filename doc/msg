@@ -1,0 +1,23 @@
+cmd sent need get reply:
+init
+sent
+received, put on queue
+ok or error after executed
+committed, sync to disk
+
+all msg should end with 'error' or 'committed'
+
+
+两个节点间消息的传输在一段时间内维持sn的递增，即使一端重新建立连接
+    
+    connect
+
+    sn = 0
+                             sn = 0
+                             ack = 1
+    sn = 1
+    ack =1
+    
+首先必须有一个可靠的消息传递系统
+
+消息是否允许乱序到达？

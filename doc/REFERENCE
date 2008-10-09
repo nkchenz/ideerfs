@@ -1,0 +1,371 @@
+{
+'version': 1,
+'cmd': 'ls',
+'dir': '.',
+....
+}
+
+fasdlfkasd
+a
+sd
+fa
+sd
+fa
+sd
+fa
+sd
+fa
+sdf
+asd
+fas
+dfa
+sd
+
+
+
+
+
+对node分配ID，'MDS' hash到一个固定的地方p，所有的mds向这个地址注册自己
+有点类似于mgs的意思
+
+如果系统中的活动mds个数低于某个值，节点p指定别的节点做为mds
+
+
+Feature:
+meta data is treated the same as object data
+elect another mds server if it's dead, no single point failure
+scale to millions of nodes
+no data lose, auto replication
+dataset support, each can has different attrs
+data version?
+cheap snapshot
+data integrity assurence 
+
+lustre: high-end hardware, high-speed network
+
+
+meta data network
+basket: don't put all your eggs in one basket
+情景简化：
+    一个nas集群，多个物理上临近的节点构成的存储集群
+
+设定最大mds数目
+开始可以指定一个节点为mds，然后自动指定某一个节点为mds，文件查询服务器indexer
+目录查询服务器 dirserver
+DirServer
+ObjServer
+
+DIRServer
+OBJServer
+
+
+Locatation Server
+
+MetaDataServer
+
+Object
+NameServer
+SearchServer
+
+
+DataSet:
+    
+
+DIRServer
+
+
+
+# Search
+Search(DataSet, Filter, Recursive)
+Lookup(Path)
+Open()
+Read()
+Write()
+Close()
+
+
+
+Key, Value
+
+packet layer
+message layer
+
+
+             IDEERFS       P2P
+
+               MDS         DHT       
+
+             Object Storage Layer
+
+
+
+
+
+
+callback:
+    status
+    done
+    error
+    length
+
+
+消息传递层：
+    消息发送过程
+
+
+write_from_localfile(file, offset, len, localfile, localoffset)
+     for buf in read localfile:
+  	write(buf, file, offset)
+
+
+
+
+
+
+send_file()
+
+worker-module threads
+
+
+
+并行与锁的合理应用，callback，当锁可用时通知等待者，或者可以让持有者与请求者进行协商。
+lock free，如果一个系统频繁的拥塞在某一个锁上，那么该部分的设计可能有问题。
+
+event处理机制，等待队列，尽量减少context switch
+必须确保在进行磁盘，网络io的时候，线程的执行并没有被停止。异步io, 平行体的概念
+
+爬山问题，起点往往被低地，坑洼环绕，要想达到最高点，只靠一点一点往上爬是不行的，要进行
+大范围的跳跃。最值问题的经典算法。步长太小就会被限制在局部的极点上。
+
+性能优化，有可能需要大的结构性调整。Imagine the "solution space" as a mountain range, with high points representing good solutions and low points representing bad ones
+
+
+Server:
+    conf
+    index: file -> replications
+
+    storage_pool
+
+数据分区技术
+
+node_distance 数据分布在不同地理位置的节点之上
+
+用户贡献存储？
+
+Client:
+    mds = '192.168.3.52'
+
+    fs = mount(mds)
+
+FS:
+    touch
+    mkdir -p
+    ls
+    open
+    read
+    write
+    close
+    rm
+    mv
+
+DB:
+    create_db
+    
+    object[k] =  v
+    insert object into db?
+
+    get
+    put
+
+
+ChunkID
+ChunkServer
+MetaServer
+
+IndexServer
+
+
+DirData
+
+
+meta数据最好存储在MDS本地，这样就限制了只有拥有meta data副本的节点才能
+参与选举成为MDS
+
+meta数据是否可以hash分区存储，当本地mds找不到时，将其重定向到合适的mds服务器？
+
+mds cluster是全部一样，还是只负责部分数据区？
+如何分区，保证灵活性？ 当该区mds死掉后，别的mds仍可以继续提供服务？
+主，副
+数据在mds cluster内部冗余，可扩展之整个集群，和其他ojbect数据一样。
+
+
+最热文件，追踪所有副本
+
+
+
+rb_tree:    
+磁盘失效时如何最小化重建时间？
+
+
+KFS Feature
+
+ideerfs
+
+    * Incremental scalability - New chunkserver nodes can be added as storage needs increase; the system automatically adapts to the new nodes.
+
+    * Availability - Replication is used to provide availability due to chunk server failures.
+
+    * Re-balancing - Periodically, the meta-server may rebalance the chunks amongst chunkservers. This is done to help with balancing disk space utilization amongst nodes.
+
+    * Data integrity - To handle disk corruptions to data blocks, data blocks are checksummed. Checksum verification is done on each read; whenever there is a checksum mismatch, re-replication is used to recover the corrupted chunk.
+
+    * Client side fail-over - During reads, if the client library determines that the chunkserver it is communicating with is unreachable, the client library will fail-over to another chunkserver and continue the read. This fail-over is transparent to the application.
+
+    * Language support - KFS client library can be accessed from C++, Java, and Python.
+
+    * FUSE support on Linux - By mounting KFS via FUSE, this support allows existing linux utilities (such as, ls) to interface with KFS.
+
+    * Leases - KFS client library uses caching to improve performance. Leases are used to support cache consistency. 
+
+
+    * notifylist
+
+
+    * journal checksum 保证日志完整性
+
+    * 异构网络支持，那是os层的事情，具体抽象出来
+
+
+s: committed_id
+c: tran_id
+client重发所有未提交的事务   committed_id < id <= tran_id
+
+如果多个client互相影响？如果有丢失的事务则后面的事务将无法恢复重做。
+
+
+
+
+执行每条指令之前查看是否需要暂停？终止？是否有中断发生？
+
+中断发生时不需要暂停当前程序运行，只是另起一个并行块 执行体 罢了。    entity
+code piece
+
+
+
+
+	parallel(a.start, b.start, c.start)
+
+
+
+        |a.start, b.start |
+
+
+        a = b   c = d    d = e
+
+
+	[a, b, c, d].parallel()
+
+	l = [a, b, c, d]
+	map(l)
+	pmap(l)
+
+
+a = branch
+v = branch
+
+并行虚拟机: 
+并行体
+数据共享
+同步与互斥
+
+world simulator
+    
+
+create world  
+初始化程序执行环境
+
+doom's day
+退出模拟 
+
+create object
+
+object两个固有属性:
+   precious 模拟精度
+   action 每个时间片执行的动作
+   died?
+   age?
+   id?
+   name?
+   type?
+
+destroy object:
+
+变量如果不需要定义，则一些没有声明的变量错误只能在运行的时候才能被发现。这样不好。
+语法错误：不经过运行
+运行期错误：
+错误是不是只有通过运行才能被全部发现？需要预防程序在测试运行的过程中产生副作用，沙盒测试。但终归与实际环境有差异，也许这就是程序的测不准原理。测试风险？
+ 		
+
+
+
+
+ideer@ideer:/home/chenz/code/ideerfs$ more ARCH 
+
+storage pool:
+    [host, dev]
+    avaible_size
+    allocated_size
+    size
+
+
+objset:
+    
+
+
+object:
+    stripe_count
+    replications
+
+
+FS:
+
+
+DataSet:
+
+
+List:
+    List
+
+
+Dir:
+    Item
+    Dir
+    
+mount 
+touch
+ls
+mkdir
+read
+write
+open
+rm
+
+
+
+
+f = ideerfs.open('kernel/sched.c')
+print f
+<object file>
+    replications
+    ....
+    size
+    ..
+
+ds: root.kernel.app
+    db.user.friends
+    db.user.profiles
+    db.user.photos
+
+security policy
+
+

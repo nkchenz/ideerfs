@@ -1,0 +1,22 @@
+cmd:
+add new dev
+remove old dev: first transfer data to other devs automatically, then remove
+
+replace
+
+online 
+offline: used for shutdown cluster, and maintainence, data stored on it not aviaible
+
+frozen: write no more new data
+
+/
+    StoragePool: python dict
+        id, 
+        location: host, dev
+        total_size,
+        used_size,
+
+        #data_type: chunk, meta
+        #dev_type: raid, mirror
+        
+    Meta

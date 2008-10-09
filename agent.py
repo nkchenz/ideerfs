@@ -13,6 +13,7 @@ import signal
 from conf import *
 from msg import *
 from channel import *
+from storage import *
 
 class Agent:
     """
@@ -21,6 +22,7 @@ class Agent:
 
     def __init__(self):
         self.shutdown = False
+        self.storage = Storage()
 
     def init(self, ip, port):
         """Bind port"""
@@ -41,9 +43,10 @@ class Agent:
                 break
             try:
                 conn = self.sk.accept()
+                #self.worker(conn)
                 thread.start_new_thread(self.worker, (conn,))
             except:
-                pass
+                raise
         # Release port
         self.sk.close()
         print 'Shutdown OK'
@@ -69,7 +72,7 @@ class Agent:
     def worker(self, conn):
         sk, addr = conn
         print 'Connected from', addr
-        mc = MessageChannel(sk)
+        mc = MessageChannel(sk, addr)
 
         # 发送欢迎信息
         w = Message()
@@ -83,7 +86,13 @@ class Agent:
             msg = mc.recv()
             if not msg or msg.data.cmd == 'bye':
                 break
-            mc.send(msg)
+            cmd = msg.data.cmd
+            if cmd == 'storage.add':
+                self.storage.add(msg, mc)
+
+            if cmd == 'storage.list':
+                self.storage.list(msg, mc)
+
         mc.close()
         print 'Bye', addr
 
