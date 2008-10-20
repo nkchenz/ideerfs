@@ -72,7 +72,7 @@ class StorageAdmin:
     def add(self, path, size, type):
         config = os.path.join(path, STORAGE_CONFIG_PATH)
         if os.path.isfile(config):
-            print 'Found config, seems %s has been added already, try \'online\'' % path
+            print '%s has been added already, use online to active' % path
             return False
         
         dev = OODict()
