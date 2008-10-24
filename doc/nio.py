@@ -18,84 +18,6 @@ class Request(OODict):
     def __init__(self):
         pass
 
-"""
-    def decode(self, data):
-        return eval(data) # Not safe, be sure to check it's only a plain dict
-
-    def encode(self):
-        header = OODict({'function:' self.function, 'args': self.args})
-        header.version = 1
-        if self.payload:
-            header.payload_length = len(self.payload)
-        return pprint.pformat(header) + '\n\n'
-
-
-class MessageChannel:
-
-    def __init__(self, sk, host):
-        self.sk = sk
-        self.host = host
-        self.msg_sn = 0 # Serial number for messages on this channel
-
-    def close(self):
-        self.sk.close()
-
-    def decode(self, data):
-        return eval(data) # Not safe, be sure to check it's only a plain dict
-
-    def encode(self, msg):
-        return pprint.pformat(msg) + '\n\n'
-
-    def send(self, msg):
-        msg.data.sn = self.msg_sn
-        self.msg_sn += 1
-        if msg.payload:
-            msg.data.payload_length = len(msg.payload)
-        data = self.encode(msg.data)
-        self.sk.send('%d\n%s' % (len(data), data))
-        if not msg.payload: # Don't have payload
-            return MSG_SEND_OK
-        if self.sk.send(msg.payload) != msg.data.payload_length:
-            return MSG_SEND_ERR # Something wrong with connection
-        return MSG_SEND_OK
-
-    def readline(self, sk):
-        data = ''
-        while True:
-            c = sk.recv(1)
-            if not c:
-                return None
-            if c == '\n':
-                return data
-            data += c
-
-    def recv(self):
-        length = self.readline(self.sk)
-        if not length:
-            return None
-        data = self.sk.recv(int(length))
-        if not data:
-            return None
-        msg = Message(self.decode(data))
-        if 'payload_length' not in msg.data: # Simple message
-            return msg
-        msg.payload = None
-        data = self.sk.recv(msg.data.payload_length)
-        if len(data) != msg.data.payload_length:
-            return None # Partial receive error, check connection
-        msg.payload = data
-        return msg
-
-def NewChannel(ip, port):
-    sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sk.connect((ip, port))
-    except socket.error, err:
-        print 'error:', err
-        return None
-    return MessageChannel(sk, ip)
-"""
-
 class NetWorkIO:
     """
     本模块的作用是在TCP之上层建立可靠的会话连接，屏蔽网络故障对应用造成的影响，提高可用性
@@ -117,6 +39,8 @@ class NetWorkIO:
      
     # 调用成功时的返回值
     'returns': {'id': 17389289} 
+
+    'error': error messages
     }
 
 
@@ -129,6 +53,16 @@ class NetWorkIO:
         ack, done, commit
         payload_length if has payload
         returns
+
+    non block call:
+        Call
+        send_request_non_block
+
+    Sender thread:
+        do_send_request
+           create_socket
+        do_send_request_raw
+
     """
 
     def create_socket(self):
@@ -155,7 +89,10 @@ class NetWorkIO:
 
     def send_request_non_block(self, req):
         # Deal with queue, send request, non blocking mode, with errors handling 
-
+        # Add to sending queue
+        # return req
+        # Should we start a timer?
+        pass
 
     def send_request(self, req):
         """Send request in blocking mode
@@ -164,10 +101,53 @@ class NetWorkIO:
 
         timeout? retry?
         """
+        if self.do_send_request(req):
+            # Check errors
 
+            # Receive ack, done, committed, message
+            return req.returns
+ 
+    def sender(self):
+        """Sending thread """
+        while True:
+            if not self.wait4_send_queue:
+                # Should use a condition var here
+                time.sleep(1)
+                continue
+
+            req = self.wait4_send_queue.remove[0]
+            # Check timeout?
+            if self.do_send_request(req):
+                self.wait4_ack_queue.append(req)
+            else:
+                self.done_queue.append(req) # Error
 
 
     def do_send_request(self, req):
+        """
+        If retry 3 times, both error, shall we continue or return error?
+        """
+        retry = self.retrys_on_socket_send_error 
+        while True:
+            try:
+                if not self.socket:
+                    self.socket = self.create_socket()
+                    if not self.socket:
+                        req.error = 'socket can\'t be created'
+                        return False
+                if self.do_send_request_raw(req):
+                    return True
+            except socket.error, err:
+                self.socket = None
+                # There must be something wrong with the socket, so just create a new one
+                if retry <= 0: # No more retrys
+                    req.error = 'no more send retrys '
+                    return False
+                # Do not need sleep here
+                retry -= 1
+
+
+    def do_send_request_raw(self, req):
         """If send ok, return True, else return False. Let upper layer care about errors"""
         msg = req.msg 
         msg_encoded = pprint.pformat(msg) + '\n\n'
@@ -176,12 +156,13 @@ class NetWorkIO:
         remain_len = len(data)
         while True:
             try:
-                len = self.socket.send(data)
-                remain_len -= len
+                size = self.socket.send(data)
+                remain_len -= size
                 if remain_len <=0:
                     return True
                 data = data[-remain_len:]
-            except:
+            except socket.error, err:
+                print 'do_send_request_simple', error
                 return False # socket error: broken pipe? closed? reset?
 
     def request_to_msg(self, req):
@@ -196,26 +177,37 @@ class NetWorkIO:
             msg.payload_length = len(req.payload)
         return msg 
 
+
     def Call(self, function, args, payload = '', block = True, retry = None, timeout = None):
         """
         整个操作在timeout之后会取消，放弃执行，不管是同步还是异步IO
         """
+        req = OODict()
         # Construct request
         req.function = function
         req.args = args 
-        if not retry:
-            retry = self.default_request_retry
+        #if not retry:
+        #    retry = self.default_request_retry
         if not timeout:
             timeout = self.default_request_timeout
         req.retry = retry
         req.birth_time = time.time()
         req.expire_time = req.birth_time + timeout
         
+        req.id = self.req_id
+        self.req_id += 1
+        req.version = 1
+        req.payload = payload
+
+        req.error = ''
         # Save msg for later use
         req.msg = self.request_to_msg(req)
  
-        # Add req to queue
-        self.wait4_send_queue.append(req)
+        # Return True if sent successfully. Please check req.returns for results
+        if block:
+            return self.send_request(req)
+        else:
+            return self.send_request_non_block(req)
 
     def Cancel(self, id):
         #取消调用的执行
@@ -241,9 +233,20 @@ class NetWorkIO:
         self.retrys_on_socket_connect_error = 7 
         self.retrys_on_socket_send_error = 3 
 
+        # Signal for sender thread to quit
+        self.sender_shutdown = False
+        
+        self.req_id = 0
         self.ack_id = 0
         self.done_id = 0
         self.commit_id = 0
+
+        self.socket = None
+
+
+    def Close(self):
+        self.socket.close()
+        # And other cleanup stuffs
 
 
 class NetworkServiceServer:
@@ -252,9 +255,15 @@ class NetworkServiceServer:
     c10k经典问题
     """
 
-foo = NetWorkIO('localhost', 1984)
-#foo = NetWorkIO('baidu.com', 80)
-foo.create_socket()
+if __name__ == '__main__':
+
+    foo = NetWorkIO('localhost', 1984)
+    #foo = NetWorkIO('baidu.com', 80)
+
+    foo.Call('fs.cp', {'src':'/foo', 'dest': '/bar'})
+    #foo.Call('fs.ls', {'file':'/'})
+
+    foo.Close()
 
 
 '''
