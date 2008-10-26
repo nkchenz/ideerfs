@@ -10,7 +10,7 @@ def send_message(f, req):
     if 'payload' in req:
         payload = req.payload
         req.payload_length = len(req.payload)
-        del req.payload
+        del req['payload']
     msg_encoded = pprint.pformat(req) 
     ver = 1
     data = pack('!ii', ver, len(msg_encoded)) + msg_encoded
@@ -41,7 +41,7 @@ def read_message(f):
         if len(payload) != msg.payload_length:
             return None # Partial receive error, check connection
         msg.payload = payload
-        del msg.payload_length
+        del msg['payload_length']
         return msg
     except:
         # Socket error
