@@ -28,22 +28,21 @@ class NIOServer(Server):
                 if not req: 
                     break
                 service, method = req.method.split('.')
+
                 r = OODict()
-                r.id = req.id
-                r.return_value = OODict()
+
                 if service not in self.services:
-                    r.return_value.error = 'unknown serice %s' % service
+                    r.error = 'unknown serice %s' % service
                 else:
                     handler = getattr(self.services[service], method)
                     if not handler:
-                        r.return_value.error = 'unknown method %s' % method
+                        r.error = 'unknown method %s' % method
                     else:
-                        r.return_value = handler(req)
-                payload = None
-                if 'payload' in r.return_value:
-                    payload = r.return_value.payload
-                    del r.return_value.payload
-                send_message(f, r, payload) 
+                        r = handler(req)
+
+                r._id = req._id
+                send_message(f, r) 
+
         f.close()
         print 'Bye', addr
 
@@ -52,11 +51,12 @@ class MetaService:
 
     def ls(self, req):
         r = OODict()
-        f = req.args.file
+        f = req.file
         if not os.path.exists(f):
             r.error = 'no such file'
         else:
             r.files = os.listdir(f)
+            r.payload = 'payload1234567890'
         return r
 
 class ChunkService:
