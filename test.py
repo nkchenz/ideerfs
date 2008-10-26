@@ -1,9 +1,14 @@
-from fs import *
+from nio import *
 
-# Two clients
-foo = FS()
-bar = FS()
-foo.mount(LISTEN_ADDRESS, LISTEN_PORT)
-bar.mount(LISTEN_ADDRESS, LISTEN_PORT)
-foo.umount()
-bar.umount()
+
+
+nio = NetWorkIO('localhost', 1984)
+
+req = OODict()
+req.method = 'meta.ls'
+req.args = {'file': '/aabdf'}
+if nio.request(req):
+    print req.return_value
+else:
+    print req.error
+

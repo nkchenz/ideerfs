@@ -1,9 +1,0 @@
-"""
-Return code
-"""
-
-MSG_SEND_OK = 1
-MSG_SEND_ERR = 2
-MSG_SEND_TIMEOUT = 3
-MSG_SEND_RETRY = 4
-
