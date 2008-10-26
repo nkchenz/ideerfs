@@ -71,6 +71,7 @@ class NetWorkIO:
 
         # What if error happens while read answer? Should we retry?
         # Set a timer here to get ack
-        req.return_value = read_message(self.socket)
+        answer = read_message(self.socket)
+        req.return_value = answer.return_value
         return True
 
