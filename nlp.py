@@ -3,6 +3,7 @@
 
 import re
 from oodict import OODict
+import sys
 
 class NLParser:
     def __init__(self):
@@ -10,6 +11,7 @@ class NLParser:
         self.VAR = '(.+?)'
         self.magic_ending = 'mNaLgP1c'
         self.rules = OODict()
+        self.dispatcher = None
 
     def _parse(self, pattern, sentence):
         """
@@ -61,14 +63,20 @@ class NLParser:
         if sentence == 'help':
             import pprint
             pprint.pprint(self.rules)
-            return None, None
+            sys.exit(0)
             
         for name, pattern in self.rules.items():
-            r = self._parse(pattern, sentence)
-            if r is None:
+            args = self._parse(pattern, sentence)
+            if args is None:
                 continue
-            return name, r
+            # Found
+            op = getattr(self.dispatcher, name)
+            if not op:
+                print 'Operation not supported', name
+                sys.exit(-1)
+            op(args)
+            sys.exit(0)
             
         print 'Sorry, cant understand:', sentence
-        return None, None
+        return -1
 
