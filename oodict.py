@@ -1,11 +1,7 @@
 """
-ZFSpy: Python bindings for ZFS
-
+OODict: object view of dict
 Copyright (C) 2008 Chen Zheng <nkchenz@gmail.com>
-
-This file is licensed under the terms of the GNU General Public License
-version 2. This program is licensed "as is" without any warranty of any
-kind, whether express or implied.
+Distributed under terms of GPL v2
 """
 
 class OODict(dict):
