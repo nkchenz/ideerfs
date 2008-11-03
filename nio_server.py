@@ -62,9 +62,24 @@ class MetaService:
 class ChunkService:
     pass
 
+class StorageManager:
+    def online():
+        pass
+    def offline():
+        pass
+    def remove():
+        pass
+    def frozen():
+        pass
+    def stat():
+        pass
+    pass
+    
+
 if __name__ == '__main__':
     server = NIOServer()
     server.register('meta', MetaService())
     server.register('chunk', ChunkService())
+    server.register('storage', StorageManager())
     server.bind('localhost', 1984)
     server.mainloop()

@@ -7,7 +7,6 @@ from nlp import NLParser
 from oodict import OODict
 
 import time
-from socket import gethostbyname
 import hashlib
 from pprint import pformat
 
@@ -55,7 +54,7 @@ class Dev:
         return hashlib.sha1(str).hexdigest()
         
 
-class StoragePool:
+class CommandSet:
     """
     1. format sda and online it
     2. replace sda with sdb
@@ -65,7 +64,9 @@ class StoragePool:
     6. remove sda  # replicate data first, then offline
     """
     
+    #----------------------------Storage----------------------------------------
     def format(self, args):
+        # Format new device
         if not os.path.exists(args.path):
             print args.path, 'not exists'
             return False
@@ -80,7 +81,7 @@ class StoragePool:
         dev.config_manager.save(dev.config, dev.config_file)
         print dev.config
         print 'Format %s OK' % args.path
-        # Format new device
+
     
     def online(self, args):
         print 'Online', args.dev
@@ -112,18 +113,31 @@ class StoragePool:
         print 'Total_disks, invalid_disks'
         print 'Pool Capacity:'
         print 'Used:'
+        
+    #-------------------------------FS---------------------------------------
+    def ls(self):
+        pass
+        
+
+    #-------------------------------MapReduce-------------------------------
+    def map(self):
+        pass
+
 
 nlparser = NLParser()
 nlparser.rules = {
-'format': 'format $path size $capacity host $host',
-'online': 'online $dev',
-'offline': 'offline $dev',
-'frozen': 'frozen $dev',
-'remove': 'remove $dev',
-'replace': 'replace $old_dev with $new_dev',
-'stat': 'stat '
+'format': 'storage format $path size $capacity host $host',
+'online': 'storage online $dev',
+'offline': 'storage offline $dev',
+'frozen': 'storage frozen $dev',
+'remove': 'storage remove $dev',
+'replace': 'storage replace $old_dev with $new_dev',
+'stat': 'storage stat '
 }
 
-nlparser.dispatcher = StoragePool()
+
+#commands_sets = {'storage', 'fs', 'job'}
+
+nlparser.dispatcher = CommandSet()
 input = ' '.join(sys.argv[1:])
 nlparser.parse(input)
