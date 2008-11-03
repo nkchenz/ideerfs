@@ -5,53 +5,30 @@ import os
 import sys
 from nlp import NLParser
 from oodict import OODict
+from util import *
+from nio import *
 
 import time
 import hashlib
-from pprint import pformat
-
-class ConfigManager:
-    def __init__(self, path):
-        """Set root directory of configs"""
-        self.root = os.path.join(path, '.ideerfs')
-    
-    def load(self, file):
-        f = os.path.join(self.root, file)
-        if os.path.exists(f):
-            return eval(open(f, 'r').read())
-        else:
-            return None
-    
-    def save(self, config, file):
-        # Please check first, make sure you want overwrite 
-        f = os.path.join(self.root, file)
-        d = os.path.dirname(f)
-        if not os.path.exists(d):
-            os.makedirs(d)
-        open(f, 'w+').write(pformat(config))
 
 
 class Dev:
     def __init__(self, path = None):
         if path:
-            self.config_manager = ConfigManager(path)
+            self.config_manager = ConfigManager(os.path.join(path, '.ideerfs'))
             self.config_file = 'config'
-            self.config = self.config_manager.load(self.config_file)
+            self.config = self.config_manager.load(self.config_file, OODict())
     
     def init(self, args):
+        # path, host, capacity are all in args
+        args.used = 0
+        args.status = 'offline'
+        args.data_type = 'chunk' #chunk, meta
+        args.dev_type = 'file'  #raid, mirror, file, log, disk
+        str = '%s %s %s' % (time.time(), args.host, args.path)
+        args.id = hashlib.sha1(str).hexdigest()
         self.config = OODict(args)
-        #self.path = ''
-        #self.host = ''
-        #self.capacity = ''
-        self.config.used = 0
-        self.config.data_type = 'chunk' #chunk, meta
-        self.config.dev_type = 'file'  #raid, mirror, file, log, disk
-        self.config.id = self._gen_id()
-        
-    def _gen_id(self):
-        str = '%s %s %s' % (time.time(), self.config.host, self.config.path)
-        print str
-        return hashlib.sha1(str).hexdigest()
+
         
 
 class CommandSet:
@@ -64,36 +41,93 @@ class CommandSet:
     6. remove sda  # replicate data first, then offline
     """
     
+    def __init__(self):
+        # Create a connect to storage manager
+        self.storage_manager = 'localhost'
+        self.nio_storage = NetWorkIO(self.storage_manager, 1984)
+
     #----------------------------Storage----------------------------------------
     def format(self, args):
         # Format new device
         if not os.path.exists(args.path):
             print args.path, 'not exists'
             return False
-            
+        
+        size = size2byte(args.size)
+        if size is None:
+            print 'wrong size', args.size
+            return False
+        args.size = size
+        
         dev = Dev(args.path)
         if dev.config:
-            print dev.config
-            print 'Old config found, already formatted?', args.path
+            print 'already formatted?'
             sys.exit(-1)
             
         dev.init(args)
         dev.config_manager.save(dev.config, dev.config_file)
-        print dev.config
-        print 'Format %s OK' % args.path
+        print 'format ok'
 
     
     def online(self, args):
-        print 'Online', args.dev
+        dev = Dev(args.path)
+        if not dev.config:
+            print 'not formatted'
+            return False
+        
+        if dev.config.status == 'online':
+            print 'already online'
+            return False
+
+        req = OODict()
+        req.method = 'storage.online'
+        req.dev =  dev.config
+        result = self.nio_storage.request(req)
+        if 'error' in result:
+            print result.error
+            return False
+        dev.config.status = 'online'
+        dev.config_manager.save(dev.config, dev.config_file)
+        print 'online ok'
     
     def offline(self, args):
-        print 'Offline', args.dev
-        pass
+        dev = Dev(args.path)
+        if not dev.config:
+            print 'not formatted'
+            return False
+        if dev.config.status != 'online':
+            print 'not online'
+            return False
+        req = OODict()
+        req.method = 'storage.offline'
+        req.dev_id =  dev.config.id
+        result = self.nio_storage.request(req)
+        if 'error' in result:
+            print result.error
+            return False
+        dev.config.status = 'offline'
+        dev.config_manager.save(dev.config, dev.config_file)
+        print 'offline ok'
         
     def frozen(self, args):
-        print 'Frozen', args.dev
-        # No more writes on dev
-        pass
+        dev = Dev(args.path)
+        if not dev.config:
+            print 'not formatted'
+            return False
+        if dev.config.status != 'online':
+            print 'not online'
+            return False
+        req = OODict()
+        req.method = 'storage.frozen'
+        req.dev_id =  dev.config.id
+        result = self.nio_storage.request(req)
+        if 'error' in result:
+            print result.error
+            return False
+        dev.config.status = 'frozen'
+        dev.config_manager.save(dev.config, dev.config_file)
+        print 'frozen ok'
+
     
     def remove(self, args):
         pass
@@ -108,11 +142,20 @@ class CommandSet:
     def stat(self, args):
         """
         # total_disks, invalid_disks
-        
         """
-        print 'Total_disks, invalid_disks'
-        print 'Pool Capacity:'
-        print 'Used:'
+        req = OODict()
+        req.method = 'storage.stat'
+        result = self.nio_storage.request(req)
+        if 'error' in result:
+            print result.error
+            return False
+
+        print 'size:', byte2size(result.statistics.size)
+        print 'used:', byte2size(result.statistics.used)
+
+        #print 'Total_disks, invalid_disks'
+        #print 'Pool Capacity:'
+        #print 'Used:'
         
     #-------------------------------FS---------------------------------------
     def ls(self):
@@ -126,12 +169,12 @@ class CommandSet:
 
 nlparser = NLParser()
 nlparser.rules = {
-'format': 'storage format $path size $capacity host $host',
-'online': 'storage online $dev',
-'offline': 'storage offline $dev',
-'frozen': 'storage frozen $dev',
-'remove': 'storage remove $dev',
-'replace': 'storage replace $old_dev with $new_dev',
+'format': 'storage format $path size $size host $host',
+'online': 'storage online $path',
+'offline': 'storage offline $path',
+'frozen': 'storage frozen $path',
+'remove': 'storage remove $path',
+'replace': 'storage replace $old_path with $new_path',
 'stat': 'storage stat '
 }
 
