@@ -24,7 +24,7 @@ class Dev:
         args.used = 0
         args.status = 'offline'
         args.data_type = 'chunk' #chunk, meta
-        args.dev_type = 'file'  #raid, mirror, file, log, disk
+        args.type = 'file'  #raid, mirror, file, log, disk
         str = '%s %s %s' % (time.time(), args.host, args.path)
         args.id = hashlib.sha1(str).hexdigest()
         self.config = OODict(args)
@@ -34,8 +34,8 @@ class Dev:
             print 'not formatted'
             sys.exit(-1)
         
-        if self.config.status != status:
-            print 'not', status
+        if self.config.status not in status:
+            print 'status not in', status
             sys.exit(-1)
     
     def change_status(self, status):
@@ -77,6 +77,11 @@ class CommandSet:
             return False
         args.size = size
         
+        types = ['meta', 'chunk']
+        if args.data_type not in types:
+            print 'wrong data_type, only support', types 
+            return False
+
         dev = Dev(args.path)
         if dev.config:
             print 'already formatted?'
@@ -89,7 +94,7 @@ class CommandSet:
     
     def online(self, args):
         dev = Dev(args.path)
-        dev.assert_status('offline')
+        dev.assert_status(['offline'])
         req = OODict()
         req.method = 'storage.online'
         req.dev =  dev.config
@@ -100,7 +105,7 @@ class CommandSet:
     
     def offline(self, args):
         dev = Dev(args.path)
-        dev.assert_status('online')
+        dev.assert_status(['online', 'frozen'])
         req = OODict()
         req.method = 'storage.offline'
         req.dev_id =  dev.config.id
@@ -111,7 +116,7 @@ class CommandSet:
         
     def frozen(self, args):
         dev = Dev(args.path)
-        dev.assert_status('online')
+        dev.assert_status(['online'])
         req = OODict()
         req.method = 'storage.frozen'
         req.dev_id =  dev.config.id
@@ -141,7 +146,7 @@ class CommandSet:
         self.assert_error(result)
         print 'size:', byte2size(result.statistics.size)
         print 'used:', byte2size(result.statistics.used)
-
+        print result.meta_dev
         #print 'Total_disks, invalid_disks'
         #print 'Pool Capacity:'
         #print 'Used:'
@@ -158,7 +163,7 @@ class CommandSet:
 
 nlparser = NLParser()
 nlparser.rules = {
-'format': 'storage format $path size $size host $host',
+'format': 'storage format $path size $size host $host for $data_type data',
 'online': 'storage online $path',
 'offline': 'storage offline $path',
 'frozen': 'storage frozen $path',

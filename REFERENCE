@@ -46,3 +46,5 @@ each cpu in smps watchs the global current parallel running entities
     map(l)
     pmap(l)
 
+
+storagemanager only allow one meta dev

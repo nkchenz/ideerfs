@@ -49,6 +49,13 @@ class NIOServer(Server):
 
 
 class MetaService:
+    """
+    object id: sha1 of path, everything is object, include attrs, metas, dir, file
+    
+    all object except data chunk object are stored on meta dev. There are only 
+    one metadev in the whole system.
+    
+    """
 
     def ls(self, req):
         r = OODict()
@@ -64,11 +71,17 @@ class ChunkService:
     pass
 
 class StorageManager:
+    """
+    Load storage pool cache informations from ~/.ideerfs/storage_pool.cache at
+    startup.
+    
+    """
     
     def __init__(self):
         self.cache_file = 'storage_pool.cache'
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
         self.cache = self.cm.load(self.cache_file, OODict())
+        self.meta_dev = None
         
         # Compute status
         self.statistics = OODict()
@@ -76,33 +89,54 @@ class StorageManager:
         self.statistics.used = 0
         if self.cache:
             for k, v in self.cache.items():
-                self.statistics.size += v['size']
-                self.statistics.used += v['used']
+                # Change dev dict to OODict for later convenience
+                if not isinstance(v, OODict):
+                    v = OODict(v)
+                    self.cache[k] = v
+                
+                if v.data_type == 'meta' and self.meta_dev is None:
+                    self.meta_dev = v
+                self.statistics.size += v.size
+                self.statistics.used += v.used
         
     def online(self, req):
         """Add dev into pool, return error if it's added already"""
+        # Make sure you add one and only one meta dev        
         response = OODict()
         dev = req.dev
-        if dev.id not in self.cache:
-            self.cache[dev.id] = dev
-            self.statistics.size += dev.size
-            self.statistics.used += dev.used
-            dev.status = 'online'
-        else:
+        if dev.id in self.cache:
             response.error = 'dev exists'
+            return response
+            
+        # Set meta dev
+        if dev.data_type == 'meta':
+            if self.meta_dev is not None:
+                response.error = 'meta_dev exists'
+                return response
+            self.meta_dev = dev
+            
+        # Update statistics
+        self.cache[dev.id] = dev
+        self.statistics.size += dev.size
+        self.statistics.used += dev.used
+        dev.status = 'online'
         self.cm.save(self.cache, self.cache_file)
         return response
         
     def offline(self, req):
         """offline dev which id matches dev_id, data on it not available"""
         response = OODict()
-        if req.dev_id in self.cache:
-            dev = self.cache[req.dev_id]
-            self.statistics.size -= dev.size
-            self.statistics.used -= dev.used
-            del self.cache[req.dev_id]
-        else:
+        if req.dev_id not in self.cache:
             response.error = 'dev not exists'
+            return response
+        
+        dev = self.cache[req.dev_id]
+        if dev.data_type == 'meta':
+            self.meta_dev = None
+
+        self.statistics.size -= dev.size
+        self.statistics.used -= dev.used
+        del self.cache[req.dev_id]
         self.cm.save(self.cache, self.cache_file)
         return response
         
@@ -121,6 +155,7 @@ class StorageManager:
     def stat(self, req):
         response = OODict()
         response.statistics = self.statistics
+        response.meta_dev = self.meta_dev
         return response
 
     
