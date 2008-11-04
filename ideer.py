@@ -34,7 +34,7 @@ class Dev:
             print 'not formatted'
             sys.exit(-1)
         
-        if self.config.status == status:
+        if self.config.status != status:
             print 'not', status
             sys.exit(-1)
     
