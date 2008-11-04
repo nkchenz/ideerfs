@@ -28,7 +28,20 @@ class Dev:
         str = '%s %s %s' % (time.time(), args.host, args.path)
         args.id = hashlib.sha1(str).hexdigest()
         self.config = OODict(args)
-
+    
+    def assert_status(self, status):
+        if not self.config:
+            print 'not formatted'
+            sys.exit(-1)
+        
+        if self.config.status == status:
+            print 'not', status
+            sys.exit(-1)
+    
+    def change_status(self, status):
+        self.config.status = status
+        self.config_manager.save(self.config, self.config_file)
+        
         
 
 class CommandSet:
@@ -45,6 +58,11 @@ class CommandSet:
         # Create a connect to storage manager
         self.storage_manager = 'localhost'
         self.nio_storage = NetWorkIO(self.storage_manager, 1984)
+
+    def assert_error(self, result):
+        if 'error' in result:
+            print result.error
+            sys.exit(-1)
 
     #----------------------------Storage----------------------------------------
     def format(self, args):
@@ -65,67 +83,41 @@ class CommandSet:
             sys.exit(-1)
             
         dev.init(args)
-        dev.config_manager.save(dev.config, dev.config_file)
+        dev.change_status('offline')
         print 'format ok'
 
     
     def online(self, args):
         dev = Dev(args.path)
-        if not dev.config:
-            print 'not formatted'
-            return False
-        
-        if dev.config.status == 'online':
-            print 'already online'
-            return False
-
+        dev.assert_status('offline')
         req = OODict()
         req.method = 'storage.online'
         req.dev =  dev.config
         result = self.nio_storage.request(req)
-        if 'error' in result:
-            print result.error
-            return False
-        dev.config.status = 'online'
-        dev.config_manager.save(dev.config, dev.config_file)
+        self.assert_error(result)
+        dev.change_status('online')
         print 'online ok'
     
     def offline(self, args):
         dev = Dev(args.path)
-        if not dev.config:
-            print 'not formatted'
-            return False
-        if dev.config.status != 'online':
-            print 'not online'
-            return False
+        dev.assert_status('online')
         req = OODict()
         req.method = 'storage.offline'
         req.dev_id =  dev.config.id
         result = self.nio_storage.request(req)
-        if 'error' in result:
-            print result.error
-            return False
-        dev.config.status = 'offline'
-        dev.config_manager.save(dev.config, dev.config_file)
+        self.assert_error(result)
+        dev.change_status('offline')
         print 'offline ok'
         
     def frozen(self, args):
         dev = Dev(args.path)
-        if not dev.config:
-            print 'not formatted'
-            return False
-        if dev.config.status != 'online':
-            print 'not online'
-            return False
+        dev.assert_status('online')
         req = OODict()
         req.method = 'storage.frozen'
         req.dev_id =  dev.config.id
         result = self.nio_storage.request(req)
-        if 'error' in result:
-            print result.error
-            return False
-        dev.config.status = 'frozen'
-        dev.config_manager.save(dev.config, dev.config_file)
+        self.assert_error(result)
+        dev.change_status('frozen')
         print 'frozen ok'
 
     
@@ -146,10 +138,7 @@ class CommandSet:
         req = OODict()
         req.method = 'storage.stat'
         result = self.nio_storage.request(req)
-        if 'error' in result:
-            print result.error
-            return False
-
+        self.assert_error(result)
         print 'size:', byte2size(result.statistics.size)
         print 'used:', byte2size(result.statistics.used)
 
