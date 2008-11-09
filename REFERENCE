@@ -48,3 +48,185 @@ each cpu in smps watchs the global current parallel running entities
 
 
 storagemanager only allow one meta dev
+
+ObjectHash VS. ObjectSet
+path hash is not desirable, because once some parent dir renamed, the hash is 
+not the same any more.
+touch /a/b/c/file :hash1
+mv /a /aa
+/aa/b/c/file :hash2
+两个hash肯定不一样，就找不到file了。
+
+mkdir /
+cd /
+mkdir a b c d
+We can use path hash as a look aside buffer cache.
+
+object id is global or local???
+
+chunk_id = object_id : chunk_seq
+
+
+
+SingleImageFile vs. local fs
+
+
+可以指定objectid，object分组
+如果dev的id丢失怎么办， 如何重新生成同样的sha1 hash？ 是否应该去除timestamp?
+
+object在复制到另一个dev后，或者目录之后，id应该保持不变。
+便于对fs的snapshot
+
+large directory rm
+auto split name-hash to four directories: a/b/c/d
+/kernel/sched.c -> /k1/k2/k3/k4/s1/s2/s3/s4?
+
+sha1 40:
+2/2/2/36
+
+
+Why doesn't ext3 get hit by this?  Well, because ext3 does physical
+block journalling.  This means that we write the entire physical block
+to the journal and, only have the updates to the journal are commited,
+do we write the data to the final location on disk.  So if you yank
+out the power cord, and inode tables get trashed, they will get
+restored when the journal gets replayed.
+
+目录object与data object不同
+
+how to replicate dir-object? how to snapshot fs?
+
+so only seq object id is usable.
+
+
+dir:
+1. use a single file which contains only a dict
+2. use a single file which contains array of 'hash' items, or 'hash name' pair items
+cons:查询时必须全部读取到内存
+将字典分割？
+
+3. use a dir:
+   sha1 40:
+   2/2/2/36
+好处：查询不用全部读取到内存中 查找
+坏处：如何repcliate，可以压缩后在复制，和普通object一样
+
+如何解决全局object id问题？:
+hash(parent.hash + self.name)
+sequent object id?
+
+一旦parent发生变化，即将其mv到别处之后，id也应发生变化。否则将不可能在原位置创建同样name的文件。
+id不应和文件位置有关，再加上时间戳？ 在同一时间可能完成mv并重建的工作
+
+object id：
+和文件位置无关
+和mds所在位置无关
+
+
+
+特定object存储在特定节点dev上？
+
+
+
+object setid, chunkid
+1.3.4.10224:4
+可以指定某一个数据集存放在哪些节点上？
+
+
+应该由storage manager统一生成全局唯一的id，效率问题？
+
+
+dir如果相当于一个objectset，那么子文件的id只需在该set内唯一即可，可以为一个序列号。但是现在的问题
+是是否需要全局唯一的chunk id？
+
+如果object id有40位，storage manager可以向client哈哈发放30位的seqnumber，client可以自己
+生成低10位，合在一起构成一个全局有效的id。
+属于顺序生成型， 和hash不一样？
+
+ZFS uses a copy-on-write, transactional object model. All block pointers within 
+the filesystem contain a 256-bit checksum of the target block which is verified 
+when the block is read. Blocks containing active data are never overwritten in 
+place; instead, a new block is allocated, modified data is written to it, and 
+then any metadata blocks referencing it are similarly read, reallocated, and 
+written. To reduce the overhead of this process, multiple updates are grouped 
+into transaction groups, and an intent log is used when synchronous write 
+semantics are required.
+
+The ZFS copy-on-write model has another powerful advantage: when ZFS writes new 
+data, instead of releasing the blocks containing the old data, it can instead 
+retain them, creating a snapshot version of the file system. ZFS snapshots are 
+created very quickly, since all the data comprising the snapshot is already 
+stored; they are also space efficient, since any unchanged data is shared among
+ the file system and its snapshots.
+
+Writable snapshots ("clones") can also be created, resulting in two independent
+ file systems that share a set of blocks. As changes are made to any of the clone
+  file systems, new data blocks are created to reflect those changes, but any 
+  unchanged blocks continue to be shared, no matter how many clones exist. 
+
+kfs 
+ class UniqueID {
+ 53         seqid_t n;              //!< id of this object
+ 54         seqid_t seed;           //!< seed for generator
+ 55 public:
+ 56         /*!
+ 57          * \brief generate a new id
+ 58          */
+ 59         fid_t genid() { return ++seed; }
+ 60         fid_t getseed() { return seed; }
+ 61         void setseed(seqid_t s) { seed = s; }
+ 62         UniqueID(seqid_t id, seqid_t s): n(id), seed(s) { }
+ 63         UniqueID(): n(0), seed(0) { }
+ 64         seqid_t id() const { return n; }        //!< return id
+ 65 };
+ 
+ 
+ kfs chunk path:
+ os << mChunkDirs[chunkSubdir] << '/' << fid << '.' << chunkId << '.' << chunkVersion;
+
+
+dir, file are all objects
+
+
+dir = {
+ id: ...
+ name: '/',
+ children: {
+    .: self,
+    ..: parent,
+    a: adb34f...filea
+ }
+}
+
+file = {
+ id: b2a4f..filehash
+ name = 'a'
+ replicate_facotr = 3
+ chunk_size = 64m
+ chunks = {
+ 1:{
+    version:3,
+    replications:{devx, devy, devz }
+ }
+ ,
+ 3:{
+   version:3,
+   replications:{devx, devy, devz }
+ }
+ 
+ #1, 3, 4
+ #1: b2a4f:1
+ #2: b2a4f:3
+ }
+}
+
+fid.chunk_id = {   
+   version:3,
+   sha1: b2a4...
+}
+
+stride vs. replicate
+
+
+
+

@@ -79,3 +79,24 @@ class NetWorkIO:
         # Set a timer here to get ack
         return read_message(self.socket)
 
+'''
+socket.check from kfs
+241 bool TcpSocket::IsGood()
+242 {
+243     if (mSockFd < 0)
+244         return false;
+245 
+246 #if 0
+247     char c;
+248     
+249     // the socket could've been closed by the system because the peer
+250     // died.  so, tell if the socket is good, peek to see if any data
+251     // can be read; read returns 0 if the socket has been
+252     // closed. otherwise, will get -1 with errno=EAGAIN.
+253     
+254     if (Peek(&c, 1) == 0)
+255         return false;
+256 #endif
+257     return true;
+258 }
+'''

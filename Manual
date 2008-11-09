@@ -1,4 +1,5 @@
-storage
+1. storage pool管理
+only for chunk devices
 
 ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage stat
 size: 28g
@@ -54,3 +55,33 @@ ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdd size 10g 
 Sorry, cant understand: storage format /data/sdd size 10g host localhost for meta
 ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdd size 10g host localhost for chunk data
 already formatted?
+
+
+
+
+
+
+
+
+=format meta device=
+整个系统只有一个meta设备，在MetaService初始化的时候设置
+
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdd size 10g host localhost for meta data
+format ok
+ideer@ideer:/data/sdd$ more config
+{'data_type': 'meta',
+ 'host': 'localhost',
+ 'id': '61e733605f933dddf73fb3adedd8dd4ce001b682',
+ 'path': '/data/sdd',
+ 'size': 10737418240L,
+ 'status': 'offline',
+ 'type': 'file',
+ 'used': 0}
+ideer@ideer:/data/sdd$ ls
+config  META  seq
+
+
+
+
+
+

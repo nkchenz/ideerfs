@@ -10,15 +10,21 @@ http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/kfs/KosmosFi
 from nio import *
 
 class FileSystem:
+    
+    def __init__(self):
+        self.nio_meta = NetWorkIO('localhost', 1984)
 
-    def exists(path):
-        pass
+    def exists(self, file):
+        req = OODict()
+        req.method = 'meta.exists'
+        req.file =  file
+        print self.nio_meta.request(req)
 
     def create(file, attr):
         # Create new files with attrs: replication factor, bs, permission
         pass
 
-    def delete(file, recursive?):
+    def delete(file, recursive):
         pass
     
     def get_block_locations(file, start, len):
@@ -28,13 +34,18 @@ class FileSystem:
         #checksum, 
         pass
         
-    def ls(dir):
-        """path dir"""
-        pass
+    def lsdir(self, dir):
+        req = OODict()
+        req.method = 'meta.lsdir'
+        req.dir =  dir
+        print self.nio_meta.request(req)
         
-    def mkdirs():
-        pass
-        
+    def mkdir(self, dir):
+        req = OODict()
+        req.method = 'meta.mkdir'
+        req.dir =  dir
+        print self.nio_meta.request(req)
+            
     def mv():
         # Rename
         pass
@@ -96,13 +107,12 @@ class FileStream:
     def write():
         pass
 
+foo = FileSystem()
+foo.exists('/')
+foo.exists('/c')
+foo.mkdir('/')
+foo.exists('/')
 
-nio = NetWorkIO('localhost', 1984)
-
-req = OODict()
-req.method = 'meta.ls'
-req.file =  '/aabdf'
-print nio.request(req)
-
-req.file =  '/'
-print nio.request(req)
+foo.mkdir('/a')
+foo.mkdir('/b')
+foo.lsdir('/')

@@ -25,7 +25,7 @@ def send_message(f, req):
             sent += size
             if sent >= total:
                 return True
-        except err:
+        except:
             return False # socket error: broken pipe? closed? reset?
 
 def read_message(f):

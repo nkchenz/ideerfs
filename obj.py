@@ -75,6 +75,10 @@ def next_seq():
 
 
 """
+location是不是对象？ does location info has backup? replications? only in mem?
+相当于一个路由表，dht很简单，直接hash就可以得到存储位置
+
+
 新建一个Locations目录 (key, locations)
 存放所有对象的位置信息
 
@@ -102,6 +106,18 @@ Object存放所有对象
 
 ROOT文件 存放整个文件系统根对象，可以有多份
 
+统一的object模型，只有当object太大的时候，才分割为chunk
+
+class Dir:
+    type
+    meta
+    attr
+    children
+class File:
+    type
+    meta
+    attr
+    chunks
 
 
 dir = {
@@ -156,31 +172,97 @@ file = {
 }
 
 chunk = {
- id: ad4e
+ id: 'b2a4:3'  #fid:index
  type: 'chunk'
  version: 1
  rf: 3  # File meta only has one replications
- ref:0
+ files:
+ ref:len(files)
  data: {'chunk data'
-       file: b2a4
  }
  checksum: hash(data)
  compress: '' #compress data before hash
+}
+
+所有chunk的信息都存储在meta node上，如果一个chunk不存在或者ref为0，则可以删除
+snapshot之后改变文件的rf，则chunk的rf如何处理？
+all used chunk_indexer saved in ;;
+
+如果chunk的rf变了，那么基于cow，应该生成一个新chunk ojbect，和原来的尽量共享数据。 
+
+raw_data = {
+
+
 }
 
 
 dir, file are both object container:) object container itself is a object too.
 
 
+1. 如果chunk的id基于文件的fid，一旦fid由于cow变更，则需要修改所有的chunkid
+2. 如果chunk不含有指向文件的信息，也就是说不能由chunk快速得知fid, 不方便
+3. 如果chunk中存有rf，则一旦文件的rf修改，需要改变所有chunk的rf，这是可以接受的，因为文件的
+rf本来就影响chunk
 
-fid.chunk_id = {   
-   version:3,
-   sha1: b2a4...
-}
+
+
+基于COW的snapshot算法只有在仅存在单向链接时才可用。
+
+   a a'       
+ b  c c'
+     d d'
+
+如果d变为d'，则a变为a'。如果b和a之间存在双向链接，b原来指向a，则b是否应该修改为指向a'？
+这样会引起递归修改雪崩效应。
+
+how does zfs handle '..' while snapshoting?
+
+
+   a a'
+  b c c'
+
+b.parent要动态绑定
+
+
+"""
+
+
+"""
+There shall be a way to tell which file does a chunk belong to on chunkserver
+v1
+-seq chunk write, do not support stride
+-only replicate chunk
+-chunk is named under fid
+-meta rw is different from chunk rw
+
+v2
+-everything is a object
+-every object has a replication factor
+-cow, easy snapshot
+-chunk_meta is stored under Meta on meta server, chunk_data is stored under Object
+ on chunk servers
+ 
+snapshot
+-do not care about rf in chunk, always be the largest rf of all the snapshots or 
+the latest one aka current rf
+-chunk file always point back to the oldest snapshot who share this chunk
+
+
+princple version
+-no transactions
+-no locks
+-no use then
+
+
+f
+
+
 
 
 
 """
+
+
 
 
 

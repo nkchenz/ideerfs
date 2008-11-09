@@ -5,44 +5,10 @@ import os
 import sys
 from nlp import NLParser
 from oodict import OODict
+
 from util import *
 from nio import *
-
-import time
-import hashlib
-
-
-class Dev:
-    def __init__(self, path = None):
-        if path:
-            self.config_manager = ConfigManager(os.path.join(path, '.ideerfs'))
-            self.config_file = 'config'
-            self.config = self.config_manager.load(self.config_file, OODict())
-    
-    def init(self, args):
-        # path, host, capacity are all in args
-        args.used = 0
-        args.status = 'offline'
-        args.data_type = 'chunk' #chunk, meta
-        args.type = 'file'  #raid, mirror, file, log, disk
-        str = '%s %s %s' % (time.time(), args.host, args.path)
-        args.id = hashlib.sha1(str).hexdigest()
-        self.config = OODict(args)
-    
-    def assert_status(self, status):
-        if not self.config:
-            print 'not formatted'
-            sys.exit(-1)
-        
-        if self.config.status not in status:
-            print 'status not in', status
-            sys.exit(-1)
-    
-    def change_status(self, status):
-        self.config.status = status
-        self.config_manager.save(self.config, self.config_file)
-        
-        
+from dev import *
 
 class CommandSet:
     """
@@ -89,11 +55,22 @@ class CommandSet:
             
         dev.init(args)
         dev.change_status('offline')
+        
+        if args.data_type == 'meta':
+            dev.config_manager.save(0, 'seq')
+            os.mkdir(os.path.join(args.path, 'META'))
+        else:
+            os.mkdir(os.path.join(args.path, 'OBJECTS'))
         print 'format ok'
 
     
     def online(self, args):
         dev = Dev(args.path)
+        
+        if dev.config.data_type != 'chunk':
+            print 'wrong data_type'
+            sys.exit(-1)
+
         dev.assert_status(['offline'])
         req = OODict()
         req.method = 'storage.online'
@@ -160,7 +137,8 @@ class CommandSet:
     def map(self):
         pass
 
-
+# Usage format, symbols beginning with '$' are vars which you can use directly
+# in the 'args' parameter of method of class CommandSet
 nlparser = NLParser()
 nlparser.rules = {
 'format': 'storage format $path size $size host $host for $data_type data',
