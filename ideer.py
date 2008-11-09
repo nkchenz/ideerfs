@@ -5,12 +5,18 @@ import os
 import sys
 from nlp import NLParser
 from oodict import OODict
+from fs import FileSystem
 
 from util import *
 from nio import *
 from dev import *
 
-class CommandSet:
+def assert_error(result):
+    if 'error' in result:
+        print result.error
+        sys.exit(-1)
+
+class StorageAdmin:
     """
     1. format sda and online it
     2. replace sda with sdb
@@ -21,16 +27,21 @@ class CommandSet:
     """
     
     def __init__(self):
-        # Create a connect to storage manager
         self.storage_manager = 'localhost'
         self.nio_storage = NetWorkIO(self.storage_manager, 1984)
+        
+        # Usage format, symbols beginning with '$' are vars which you can use directly
+        # in the 'args' parameter
+        self.usage_rules = {
+            'format $path size $size host $host for $data_type data': 'format',
+            'online $path': 'online',
+            'offline $path': 'offline',
+            'frozen $path': 'frozen',
+            'remove $path': 'remove',
+            'replace $old_path with $new_path': 'replace',
+            'stat': 'stat ',
+        }
 
-    def assert_error(self, result):
-        if 'error' in result:
-            print result.error
-            sys.exit(-1)
-
-    #----------------------------Storage----------------------------------------
     def format(self, args):
         # Format new device
         if not os.path.exists(args.path):
@@ -76,7 +87,7 @@ class CommandSet:
         req.method = 'storage.online'
         req.dev =  dev.config
         result = self.nio_storage.request(req)
-        self.assert_error(result)
+        assert_error(result)
         dev.change_status('online')
         print 'online ok'
     
@@ -87,7 +98,7 @@ class CommandSet:
         req.method = 'storage.offline'
         req.dev_id =  dev.config.id
         result = self.nio_storage.request(req)
-        self.assert_error(result)
+        assert_error(result)
         dev.change_status('offline')
         print 'offline ok'
         
@@ -98,7 +109,7 @@ class CommandSet:
         req.method = 'storage.frozen'
         req.dev_id =  dev.config.id
         result = self.nio_storage.request(req)
-        self.assert_error(result)
+        assert_error(result)
         dev.change_status('frozen')
         print 'frozen ok'
 
@@ -111,7 +122,6 @@ class CommandSet:
         print 'Transfering data to', args.new_dev
         print 'OK'
         # First transfer data to other devs automatically, then remove
-        pass
         
     def stat(self, args):
         """
@@ -120,39 +130,100 @@ class CommandSet:
         req = OODict()
         req.method = 'storage.stat'
         result = self.nio_storage.request(req)
-        self.assert_error(result)
-        print 'size:', byte2size(result.statistics.size)
-        print 'used:', byte2size(result.statistics.used)
-        print result.meta_dev
+        assert_error(result)
+        for k, v in result.statistics.items():
+            print '%s: %s' % (k, v)
+            
         #print 'Total_disks, invalid_disks'
         #print 'Pool Capacity:'
         #print 'Used:'
-        
-    #-------------------------------FS---------------------------------------
-    def ls(self):
-        pass
-        
+    
 
+class FSShell:
+    def __init__(self):
+        self.fs = FileSystem()
+        #self.storage_manager = 'localhost'
+        self.usage_rules = {
+            'lsdir': 'lsdir', 
+            'lsdir $dir': 'lsdir',
+            'mkdir $dirs': 'mkdir',
+            'exists $file': 'exists',
+            'get $attrs of $file': 'get_file_meta', 
+            'set $attrs of $file to $values': 'set_file_attr',
+            'delete $file $mode': 'delete',  # mode is recursively
+            'mv $old $new': 'mv',
+            'cp $src $dest': 'cp',
+            'stat': 'stat',
+            'cd $dir': 'cd',
+            'pwd': 'pwd'
+            }
+        
+        # Is there a easy way to export envs still exists after this program exit
+        # os.environ did not work
+        self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
+ 
+    def _getpwd(self):
+        return self.cm.load('pwd', '')
+    
+    def _normpath(self, dir):
+        # Norm path with PWD
+        p = os.path.join(self._getpwd(), dir)
+        if not p:
+            return '' # Empty pwd and dir
+        # Make sure it's an absolute path
+        return os.path.normpath(os.path.join('/', p))
+    
+    def cd(self, args):
+        meta = self.fs.get_file_meta(args.dir)
+        if meta and meta.type == 'dir':
+            self.cm.save(args.dir, 'pwd')
+        
+    def exists(self, args):
+        print self.fs.exists(args.file)
+        
+    def lsdir(self, args):
+        if 'dir' not in args: # There is a rule of lsdir without $dir
+            args.dir = ''
+        dir = self._normpath(args.dir)
+        if not dir:
+            return
+        files = self.fs.lsdir(dir)
+        if files:
+            print ' '.join(files)
+
+    def mkdir(self, args):
+        for dir in args.dirs.split():
+            dir = self._normpath(dir)
+            self.fs.mkdir(dir)
+                
+    def pwd(self, args):
+        print self._getpwd()
+
+
+class JobController:
+    def __init__(self):
+        self.usage_rules = {}
     #-------------------------------MapReduce-------------------------------
     def map(self):
         pass
 
-# Usage format, symbols beginning with '$' are vars which you can use directly
-# in the 'args' parameter of method of class CommandSet
-nlparser = NLParser()
-nlparser.rules = {
-'format': 'storage format $path size $size host $host for $data_type data',
-'online': 'storage online $path',
-'offline': 'storage offline $path',
-'frozen': 'storage frozen $path',
-'remove': 'storage remove $path',
-'replace': 'storage replace $old_path with $new_path',
-'stat': 'storage stat '
+
+command_sets = {
+'storage': StorageAdmin(),
+'fs': FSShell(),
+'job': JobController()
 }
 
+if len(sys.argv) <= 1 or sys.argv[1] == 'help':
+    print 'usage:', sys.argv[0], '|'.join(command_sets), 'action'
+    sys.exit(-1)
 
-#commands_sets = {'storage', 'fs', 'job'}
-
-nlparser.dispatcher = CommandSet()
-input = ' '.join(sys.argv[1:])
-nlparser.parse(input)
+cmd_class = sys.argv[1]
+if cmd_class not in command_sets:
+    print 'unknown cmd class', cmd_class
+    sys.exit(-1)
+    
+# Set dispatcher and rules for nlp
+nlp = NLParser(command_sets[cmd_class])
+input = ' '.join(sys.argv[2:])
+nlp.parse(input)

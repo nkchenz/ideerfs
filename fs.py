@@ -14,37 +14,64 @@ class FileSystem:
     def __init__(self):
         self.nio_meta = NetWorkIO('localhost', 1984)
 
-    def exists(self, file):
-        req = OODict()
-        req.method = 'meta.exists'
-        req.file =  file
-        print self.nio_meta.request(req)
-
     def create(file, attr):
         # Create new files with attrs: replication factor, bs, permission
         pass
 
-    def delete(file, recursive):
+    def delete(file, recursive = False):
         pass
     
-    def get_block_locations(file, start, len):
+    def exists(self, file):
+        req = OODict()
+        req.method = 'meta.exists'
+        req.file =  file
+        if 'error' in self.nio_meta.request(req):
+            return False
+        else:
+            return True
+
+    def get_chunk_locations(file, start, len):
         pass
         
-    def get_file_meta():
+    def get_file_meta(self, file):
         #checksum, 
-        pass
+        req = OODict()
+        req.method = 'meta.get'
+        req.file =  file
+        result = self.nio_meta.request(req)
+        if 'error' in result:
+            print result.error
+            return None
+        else:
+            return result.meta
         
     def lsdir(self, dir):
+        """list dir, return [] if not exists or not a dir"""
+        if not dir:
+            return []
         req = OODict()
         req.method = 'meta.lsdir'
         req.dir =  dir
-        print self.nio_meta.request(req)
-        
+        result = self.nio_meta.request(req)
+        if 'error' in result:
+            print result.error
+            return []
+        else:
+            return result.children
+
     def mkdir(self, dir):
+        """return True or False"""
+        if not dir:
+            return True
         req = OODict()
         req.method = 'meta.mkdir'
         req.dir =  dir
-        print self.nio_meta.request(req)
+        result = self.nio_meta.request(req)
+        if 'error' in result:
+            print result.error
+            return False
+        else:
+            return True
             
     def mv():
         # Rename
@@ -80,13 +107,13 @@ class FileSystem:
 
 
 class FileMeta:
-    def get_blocksize():
+    def get(self):
         # Get attrs of file
         # len, atime, mtime, group, dataset, replication factor, owner, etc.
         # pathname hash
         pass
         
-    def set():
+    def set(self):
         # Set attrs of file
         pass
 
@@ -107,12 +134,14 @@ class FileStream:
     def write():
         pass
 
-foo = FileSystem()
-foo.exists('/')
-foo.exists('/c')
-foo.mkdir('/')
-foo.exists('/')
+if __name__ == '__main__':
 
-foo.mkdir('/a')
-foo.mkdir('/b')
-foo.lsdir('/')
+    foo = FileSystem()
+    foo.exists('/')
+    foo.exists('/c')
+    foo.mkdir('/')
+    foo.exists('/')
+
+    foo.mkdir('/a')
+    foo.mkdir('/b')
+    foo.lsdir('/')
