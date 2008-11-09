@@ -6,12 +6,15 @@ from oodict import OODict
 import sys
 
 class NLParser:
-    def __init__(self):
+    def __init__(self, handler = None):
         self.CHARS = '.*?'
         self.VAR = '(.+?)'
         self.magic_ending = 'mNaLgP1c'
         self.rules = OODict()
         self.dispatcher = None
+        if handler:
+            self.dispatcher = handler
+            self.rules =  handler.usage_rules
 
     def _parse(self, pattern, sentence):
         """
@@ -60,23 +63,26 @@ class NLParser:
         return values
 
     def parse(self, sentence):
-        if sentence == 'help':
-            import pprint
-            pprint.pprint(self.rules)
+        if not sentence or sentence == 'help':
+            for k, v in sorted(self.rules.items()):
+                print k
             sys.exit(0)
             
-        for name, pattern in self.rules.items():
+        for pattern, name in self.rules.items():
             args = self._parse(pattern, sentence)
             if args is None:
                 continue
+            
             # Found
-            op = getattr(self.dispatcher, name)
-            if not op:
-                print 'Operation not supported', name
+            try:
+                op = getattr(self.dispatcher, name)
+            except AttributeError:
+                print 'operation not support:', name
                 sys.exit(-1)
+                
             op(args)
             sys.exit(0)
             
-        print 'Sorry, cant understand:', sentence
+        print 'cant understand:', sentence
         return -1
 
