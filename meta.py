@@ -4,6 +4,8 @@ from dev import *
 import time
 import hashlib
 
+from obj import Object
+
 class MetaService:
     """
     object id: sha1 of path, everything is object, include attrs, metas, dir, file
@@ -22,8 +24,12 @@ class MetaService:
         
         self.seq_file = 'seq'
         self.meta_dir = 'META'
-        
-        self.root_id = 1
+        self.root_id_file = 'root_id'
+        self.root_id = self.dev.config_manager.load(self.root_id_file)
+        if self.root_id is None or not self._lookup('/'):
+            print 'root object not found'
+            sys.exit(-1)
+            
 
     def _next_seq(self):
         # We should get a multi thread lock here to protect 'SEQ' file
@@ -68,21 +74,6 @@ class MetaService:
         return self._get_object(id)
 
     
-    def _new_obj(self, id, type, parent):
-        obj = OODict()
-        obj.id = id
-        obj.meta = {
-            'type': type,
-            'ctime': '%d' % time.time(),
-            #'name': dir
-        }
-        if type == 'dir':
-            obj.children = {
-                '.': id,
-                '..': parent
-            }
-        return obj
-
     def create(self, req):
         # Create files
         pass
@@ -114,28 +105,27 @@ class MetaService:
         response.children = obj.children.keys()
         return response    
 
-    def mkdir(self, req):
-        """how to deal with root dir /"""
-        response = OODict()
-        dir = os.path.normpath(req.dir)
-        if dir == '/':
-            if self._lookup(dir):
-                response.error = 'root exists'
-                return response
-            else:
-                # Make root
-                id = self._next_seq()
-                if not id:
-                    response.error = 'next seq error'
-                    return response
-                obj = self._new_obj(id, 'dir', id)
-                self._save_object(obj)
-                response.id = id
-                return response
 
-        parent_name = os.path.dirname(dir)
-        myname = os.path.basename(dir)
+    def create(self, req):
+        # Check args: file, type, attr !fixme
+        response = OODict()
+        file = os.path.normpath(req.file)
+    
+        # Valid attrs names here
+        if 'attr' not in req:
+            req.attr = {}
+        if req.type not in ['dir', 'file']:
+            response.error = 'wrong type'
+            return response
+
+        parent_name = os.path.dirname(file)
+        myname = os.path.basename(file)
         
+        if not myname:
+            response.error = 'root exists'
+            return response
+        
+        # Make sure parent exists and is a dir
         parent = self._lookup(parent_name)
         if parent is None:
             response.error = 'no such directory: %s' % parent_name
@@ -144,7 +134,7 @@ class MetaService:
             response.error = 'not a directory: %s' % parent_name
             return response
         if myname in parent.children:
-            response.error = 'dir exists'
+            response.error = 'file exists'
             return response
  
         id = self._next_seq()
@@ -152,10 +142,12 @@ class MetaService:
             response.error = 'next seq error'
             return response
         
-        obj = self._new_obj(id, 'dir', parent.id)
+        new_file = Object(myname, id, parent.id, req.type, req.attr)
         parent.children[myname] = id
+        
+        # A journal-log should be created in case failure between these two ops
         self._save_object(parent)
-        self._save_object(obj)
+        self._save_object(new_file)
+
         response.id = id
         return response
-          

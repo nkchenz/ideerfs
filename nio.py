@@ -75,6 +75,7 @@ class NetWorkIO:
                 # Do not need sleep here
                 retry -= 1
 
+        # Retrans here FIXME
         # What if error happens while read answer? Should we retry?
         # Set a timer here to get ack
         return read_message(self.socket)

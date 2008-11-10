@@ -6,7 +6,6 @@ http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/FileSystem.h
 http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/dfs/DistributedFileSystem.html
 http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/kfs/KosmosFileSystem.html
 """
-
 from nio import *
 
 class FileSystem:
@@ -14,9 +13,25 @@ class FileSystem:
     def __init__(self):
         self.nio_meta = NetWorkIO('localhost', 1984)
 
-    def create(file, attr):
-        # Create new files with attrs: replication factor, bs, permission
-        pass
+    def _create(self, file, type, attr):
+        req = OODict()
+        req.method = 'meta.create'
+        req.file =  file
+        req.type = type
+        req.attr = attr
+        result = self.nio_meta.request(req)
+        if 'error' in result:
+            print result.error
+            return False
+        else:
+            return True
+
+
+    def create(self, file, **attr):
+        """Create new files with attrs: replication factor, bs, permission
+        foo.create('/kernel/sched.c', replication_factor = 3, chunk_size = '64m')
+        """
+        return self._create(file, 'file', attr)
 
     def delete(file, recursive = False):
         pass
@@ -60,24 +75,20 @@ class FileSystem:
             return result.children
 
     def mkdir(self, dir):
-        """return True or False"""
-        if not dir:
-            return True
-        req = OODict()
-        req.method = 'meta.mkdir'
-        req.dir =  dir
-        result = self.nio_meta.request(req)
-        if 'error' in result:
-            print result.error
-            return False
-        else:
-            return True
+        return self._create(dir, 'dir', {})
             
     def mv():
         # Rename
         pass
         
     def open():
+        """"
+        'w+' write, truncate first
+        'rw' read write
+        'r' readonly mode
+        'a' append mode
+        """
+        #get_write_lock(file)
         pass
 
     def close():

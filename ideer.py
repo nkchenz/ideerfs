@@ -11,6 +11,8 @@ from util import *
 from nio import *
 from dev import *
 
+from obj import Object
+
 def assert_error(result):
     if 'error' in result:
         print result.error
@@ -68,8 +70,11 @@ class StorageAdmin:
         dev.change_status('offline')
         
         if args.data_type == 'meta':
-            dev.config_manager.save(0, 'seq')
-            os.mkdir(os.path.join(args.path, 'META'))
+            root_id = 1
+            dev.config_manager.save(root_id, 'seq')
+            dev.config_manager.save(root_id, 'root_id')
+            dev.config_manager.save(Object('/', root_id, root_id, 'dir'), \
+                'META/356/a19/2b7913b04c54574d18c28d46e6395428ab')
         else:
             os.mkdir(os.path.join(args.path, 'OBJECTS'))
         print 'format ok'
@@ -154,6 +159,7 @@ class FSShell:
             'mv $old $new': 'mv',
             'cp $src $dest': 'cp',
             'stat': 'stat',
+            'touch $files': 'touch', 
             'cd $dir': 'cd',
             'pwd': 'pwd'
             }
@@ -198,7 +204,11 @@ class FSShell:
                 
     def pwd(self, args):
         print self._getpwd()
-
+        
+    def touch(self, args):
+        for file in args.files.split():
+            file = self._normpath(file)
+            self.fs.create(file, replication_factor = 3, chunk_size = 67108864)
 
 class JobController:
     def __init__(self):
