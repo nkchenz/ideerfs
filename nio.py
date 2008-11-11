@@ -86,6 +86,7 @@ class NetWorkIO:
         req.method = method
         for k, v in args.items():
             req[k] = v
+            
         resp = self.request(req)
         if 'error' in resp:
             raise ResponseError(resp.error)

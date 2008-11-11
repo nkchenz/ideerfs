@@ -3,7 +3,7 @@ from dev import *
 import time
 import hashlib
 
-class StorageManager:
+class StorageService(Service):
     """
     Load storage pool cache informations from ~/.ideerfs/storage_pool.cache at
     startup.
@@ -27,50 +27,44 @@ class StorageManager:
                     self.cache[k] = v
                 self.statistics.size += v.size
                 self.statistics.used += v.used
-        
+
     def online(self, req):
         """Add dev into pool, return error if it's added already"""
         # Make sure you add one and only one meta dev        
-        response = OODict()
         dev = req.dev
         if dev.id in self.cache:
-            response.error = 'dev exists'
-            return response
+            self._error('dev exists')
         # Update statistics
         self.cache[dev.id] = dev
         self.statistics.size += dev.size
         self.statistics.used += dev.used
         dev.status = 'online'
         self.cm.save(self.cache, self.cache_file)
-        return response
+        return 0
         
     def offline(self, req):
         """offline dev which id matches dev_id, data on it not available"""
-        response = OODict()
         if req.dev_id not in self.cache:
-            response.error = 'dev not exists'
-            return response
+            self._error('dev not exists')
+        dev = self.cache[req.dev_id]
         self.statistics.size -= dev.size
         self.statistics.used -= dev.used
         del self.cache[req.dev_id]
         self.cm.save(self.cache, self.cache_file)
-        return response
+        return 0
         
     def remove(self, req):
         pass
         
     def frozen(self, req):
-        response = OODict()
         if req.dev_id in self.cache:
             self.cache[req.dev_id].status = 'frozen'
         else:
-            response.error = 'dev not exists'
+            self._error('dev not exists')
         self.cm.save(self.cache, self.cache_file)
-        return response
+        return 0
         
     def stat(self, req):
-        response = OODict()
-        response.statistics = self.statistics
-        response.statistics.total_disks = len(self.cache)
-        response.statistics.invalid_disks = 0
-        return response
+        return  self.statistics
+
+

@@ -13,10 +13,6 @@ from dev import *
 
 from obj import Object
 
-def assert_error(result):
-    if 'error' in result:
-        print result.error
-        sys.exit(-1)
 
 class StorageAdmin:
     """
@@ -41,7 +37,7 @@ class StorageAdmin:
             'frozen $path': 'frozen',
             'remove $path': 'remove',
             'replace $old_path with $new_path': 'replace',
-            'stat': 'stat ',
+            'stat': 'stat',
         }
 
     def format(self, args):
@@ -88,33 +84,22 @@ class StorageAdmin:
             sys.exit(-1)
 
         dev.assert_status(['offline'])
-        req = OODict()
-        req.method = 'storage.online'
-        req.dev =  dev.config
-        result = self.nio_storage.request(req)
-        assert_error(result)
+        self.nio_storage.call('storage.online', dev = dev.config)
+        # If there are errors, exception will be raised in 'call', so we're safe here
         dev.change_status('online')
         print 'online ok'
     
     def offline(self, args):
         dev = Dev(args.path)
         dev.assert_status(['online', 'frozen'])
-        req = OODict()
-        req.method = 'storage.offline'
-        req.dev_id =  dev.config.id
-        result = self.nio_storage.request(req)
-        assert_error(result)
+        self.nio_storage.call('storage.offline', dev_id = dev.config.id)
         dev.change_status('offline')
         print 'offline ok'
         
     def frozen(self, args):
         dev = Dev(args.path)
         dev.assert_status(['online'])
-        req = OODict()
-        req.method = 'storage.frozen'
-        req.dev_id =  dev.config.id
-        result = self.nio_storage.request(req)
-        assert_error(result)
+        self.nio_storage.call('storage.frozen', dev_id = dev.config.id)
         dev.change_status('frozen')
         print 'frozen ok'
 
@@ -132,11 +117,8 @@ class StorageAdmin:
         """
         # total_disks, invalid_disks
         """
-        req = OODict()
-        req.method = 'storage.stat'
-        result = self.nio_storage.request(req)
-        assert_error(result)
-        for k, v in result.statistics.items():
+        data = self.nio_storage.call('storage.stat')
+        for k, v in data.items():
             print '%s: %s' % (k, v)
             
         #print 'Total_disks, invalid_disks'
@@ -243,7 +225,7 @@ if cmd_class not in command_sets:
 # Set dispatcher and rules for nlp
 nlp = NLParser(command_sets[cmd_class])
 input = ' '.join(sys.argv[2:])
-try:
-    nlp.parse(input)
-except IOError, err:
-    print err.message
+#try:
+nlp.parse(input)
+#except IOError, err:
+#    print err.message

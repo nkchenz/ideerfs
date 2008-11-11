@@ -2,6 +2,12 @@ import os
 from oodict import OODict
 from pprint import pformat
 
+from exception import *
+
+class Service:
+    def _error(self, message):
+        raise RequestHandleError(message)
+
 class ConfigManager:
     def __init__(self, root):
         """Set root directory of configs"""

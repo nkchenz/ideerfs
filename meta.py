@@ -5,9 +5,8 @@ import time
 import hashlib
 
 from obj import Object
-from exception import *
 
-class MetaService:
+class MetaService(Service):
     """
     object id: sha1 of path, everything is object, include attrs, metas, dir, file
     
@@ -75,9 +74,6 @@ class MetaService:
             parent = id
         return self._get_object(id)
         
-    def _error(self, message):
-        raise RequestHandleError(message)
-    
     def exists(self, req):
         if self._lookup(req.file):
             return True

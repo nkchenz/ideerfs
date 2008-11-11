@@ -9,7 +9,7 @@ from util import *
 from exception import *
 
 from meta import MetaService
-from storage import StorageManager
+from storage import StorageService
 from chunk import ChunkService
 
 
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     server = NIOServer()
     server.register('meta', MetaService('/data/sda'))
     server.register('chunk', ChunkService())
-    server.register('storage', StorageManager())
+    server.register('storage', StorageService())
     # Meta service and Storage Service are on the same node
     server.services['meta'].storage_pool = server.services['storage']
     
