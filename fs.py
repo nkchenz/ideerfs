@@ -13,6 +13,7 @@ class FileSystem:
     def __init__(self):
         self.nio_meta = NetWorkIO('localhost', 1984)
 
+    '''
     def _create(self, file, type, attr):
         req = OODict()
         req.method = 'meta.create'
@@ -25,57 +26,36 @@ class FileSystem:
             return False
         else:
             return True
-
+    '''
 
     def create(self, file, **attr):
         """Create new files with attrs: replication factor, bs, permission
         foo.create('/kernel/sched.c', replication_factor = 3, chunk_size = '64m')
         """
-        return self._create(file, 'file', attr)
+        return self.nio_meta.call('meta.create', file = file, type = 'file', attr = attr)
 
     def delete(file, recursive = False):
+        # mv to /trash
         pass
     
     def exists(self, file):
-        req = OODict()
-        req.method = 'meta.exists'
-        req.file =  file
-        if 'error' in self.nio_meta.request(req):
-            return False
-        else:
-            return True
+        return self.nio_meta.call('meta.exists', file = file)
 
     def get_chunk_locations(file, start, len):
         pass
         
     def get_file_meta(self, file):
-        #checksum, 
-        req = OODict()
-        req.method = 'meta.get'
-        req.file =  file
-        result = self.nio_meta.request(req)
-        if 'error' in result:
-            print result.error
-            return None
-        else:
-            return result.meta
+        return self.nio_meta.call('meta.get', file = file)
         
     def lsdir(self, dir):
         """list dir, return [] if not exists or not a dir"""
         if not dir:
             return []
-        req = OODict()
-        req.method = 'meta.lsdir'
-        req.dir =  dir
-        result = self.nio_meta.request(req)
-        if 'error' in result:
-            print result.error
-            return []
-        else:
-            return result.children
+        #print self.nio_meta.call('meta.test_payload', dir = dir)
+        return self.nio_meta.call('meta.lsdir', dir = dir)
 
     def mkdir(self, dir):
-        return self._create(dir, 'dir', {})
+        return self.nio_meta.call('meta.create', file = dir, type = 'dir')
             
     def mv():
         # Rename
@@ -132,6 +112,8 @@ class FileMeta:
 class FileStream:
     def __init__():
         self.fp = 0
+        self.client_read_buffer = '' # Client buffer
+        self.client_write_buffer = ''
         
     def tell():
         pass
@@ -140,9 +122,24 @@ class FileStream:
         pass
         
     def read():
+        #self.nio_chunk.call('chunk.read', offset = 1024, size = 32m)
+        
+        pass
+    
+    def flush():
         pass
     
     def write():
+        #self.client_cache
+        # only write when a chunk is full
+        
+        #alloc block from meta or storage?
+        #-free_chunk, storagemanager use the heartbeat message of chunknode to tell
+        # it to delete a chunk
+        #  chunk.free?
+        #  chunk.alloc?
+        #-alloc_chunk
+        # 
         pass
 
 if __name__ == '__main__':

@@ -1,5 +1,10 @@
-class SocketConnectError(Exception):
+# -- client
+class ResponseError(IOError):
     pass
 
-class SocketSendError(Exception):
+class NoMoreRetryError(IOError):
+    pass
+
+# -- server
+class RequestHandleError(IOError):
     pass

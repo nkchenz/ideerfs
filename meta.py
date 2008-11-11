@@ -5,6 +5,7 @@ import time
 import hashlib
 
 from obj import Object
+from exception import *
 
 class MetaService:
     """
@@ -51,6 +52,7 @@ class MetaService:
         return self.dev.config_manager.load(os.path.join(self.meta_dir, self._id2path(id)))
 
     def _save_object(self, obj):
+        # Check if object exists?
         self.dev.config_manager.save(obj, os.path.join(self.meta_dir, self._id2path(obj.id)))
 
     def _isdir(self, obj):
@@ -72,82 +74,68 @@ class MetaService:
             id = parent.children[name]
             parent = id
         return self._get_object(id)
-
-    
-    def create(self, req):
-        # Create files
-        pass
         
+    def _error(self, message):
+        raise RequestHandleError(message)
+    
     def exists(self, req):
-        response = OODict()
-        if not self._lookup(req.file):
-            response.error = 'no such file or directory'
-        return response
+        if self._lookup(req.file):
+            return True
+        else:
+            return False
 
     def get(self, req):
-        response = OODict()
         obj = self._lookup(req.file)
         if not obj:
-            response.error = 'no such file or directory'
-            return response
-        response.meta = obj.meta
-        return response
+            self._error('no such file or directory')
+        return obj.meta
 
     def lsdir(self, req): 
-        response = OODict()
         obj = self._lookup(req.dir)
         if obj is None:
-            response.error = 'no such directory'
-            return response
+            self._error('no such directory')
         if not self._isdir(obj):
-            response.error = 'not a directory'
+            self._error('not a directory')
         # This might be very large!
-        response.children = obj.children.keys()
-        return response    
-
+        return obj.children.keys()
+    
+    def test_payload(self, req):
+        return 1, 'This is payload test'
 
     def create(self, req):
         # Check args: file, type, attr !fixme
-        response = OODict()
         file = os.path.normpath(req.file)
     
         # Valid attrs names here
         if 'attr' not in req:
             req.attr = {}
         if req.type not in ['dir', 'file']:
-            response.error = 'wrong type'
-            return response
+            self._error('wrong type')
 
         parent_name = os.path.dirname(file)
         myname = os.path.basename(file)
         
         if not myname:
-            response.error = 'root exists'
-            return response
+            self._error('root exists')
         
         # Make sure parent exists and is a dir
         parent = self._lookup(parent_name)
         if parent is None:
-            response.error = 'no such directory: %s' % parent_name
-            return response
+            self._error('no such directory: %s' % parent_name)
         if not self._isdir(parent):
-            response.error = 'not a directory: %s' % parent_name
-            return response
+            self._error('not a directory: %s' % parent_name)
         if myname in parent.children:
-            response.error = 'file exists'
-            return response
- 
+            self._error('file exists')
+         
         id = self._next_seq()
         if not id:
-            response.error = 'next seq error'
-            return response
-        
+            self._error('next seq error')
+    
         new_file = Object(myname, id, parent.id, req.type, req.attr)
         parent.children[myname] = id
         
         # A journal-log should be created in case failure between these two ops
         self._save_object(parent)
         self._save_object(new_file)
-
-        response.id = id
-        return response
+        
+        return id

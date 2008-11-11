@@ -157,7 +157,7 @@ class FSShell:
             'set $attrs of $file to $values': 'set_file_attr',
             'delete $file $mode': 'delete',  # mode is recursively
             'mv $old $new': 'mv',
-            'cp $src $dest': 'cp',
+            'cp src $src dest $dest': 'cp',
             'stat': 'stat',
             'touch $files': 'touch', 
             'cd $dir': 'cd',
@@ -172,23 +172,29 @@ class FSShell:
         return self.cm.load('pwd', '')
     
     def _normpath(self, dir):
-        # Norm path with PWD
+        # Normalize path with PWD env considered
         p = os.path.join(self._getpwd(), dir)
         if not p:
             return '' # Empty pwd and dir
-        # Make sure it's an absolute path
+        # Make sure it's an absolute path, pwd is client only, path is assumed to
+        # be absolute when communicating with meta node
         return os.path.normpath(os.path.join('/', p))
     
     def cd(self, args):
-        meta = self.fs.get_file_meta(args.dir)
+        dir = self._normpath(args.dir)
+        meta = self.fs.get_file_meta(dir)
         if meta and meta.type == 'dir':
-            self.cm.save(args.dir, 'pwd')
+            self.cm.save(dir, 'pwd')
         
+    def cp(self, args):
+        print args
+        
+
     def exists(self, args):
         print self.fs.exists(args.file)
         
     def lsdir(self, args):
-        if 'dir' not in args: # There is a rule of lsdir without $dir
+        if 'dir' not in args: # If no dir, then list pwd dir
             args.dir = ''
         dir = self._normpath(args.dir)
         if not dir:
@@ -198,6 +204,7 @@ class FSShell:
             print ' '.join(files)
 
     def mkdir(self, args):
+        # dirs can't be empty because in that case we wont get here, cant pass nlp 
         for dir in args.dirs.split():
             dir = self._normpath(dir)
             self.fs.mkdir(dir)
@@ -236,4 +243,7 @@ if cmd_class not in command_sets:
 # Set dispatcher and rules for nlp
 nlp = NLParser(command_sets[cmd_class])
 input = ' '.join(sys.argv[2:])
-nlp.parse(input)
+try:
+    nlp.parse(input)
+except IOError, err:
+    print err.message

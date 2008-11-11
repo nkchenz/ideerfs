@@ -61,8 +61,8 @@ def byte2size(n):
             return '%d%s' % (n / (1024 ** i), units[i])
 
 def log(s):
-    print s
+    print str(s)
     
 def debug(s):
-    print s
+    print str(s)
     

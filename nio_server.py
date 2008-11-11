@@ -5,10 +5,13 @@ import os
 import sys
 from server import Server
 from protocal import *
+from util import *
+from exception import *
 
 from meta import MetaService
 from storage import StorageManager
 from chunk import ChunkService
+
 
 class NIOServer(Server):
     """
@@ -31,20 +34,31 @@ class NIOServer(Server):
                 # Let client care about erros, retrans as needed
                 if not req: 
                     break
+                
+                debug(req)
+                
                 service, method = req.method.split('.')
-
                 r = OODict()
-
                 if service not in self.services:
                     r.error = 'unknown serice %s' % service
                 else:
-                    handler = getattr(self.services[service], method)
-                    if not handler:
+                    try:
+                        handler = getattr(self.services[service], method)
+                        try:
+                            returns = handler(req)
+                            # For complicated calls, read for example, should return a tuple: value, payload
+                            if isinstance(returns, tuple):
+                                r.value, r.payload = returns
+                            else:
+                                r.value = returns
+                        except RequestHandleError, err:
+                            #print dir(err)
+                            r.error = err.message
+                    except AttributeError:
                         r.error = 'unknown method %s' % method
-                    else:
-                        r = handler(req)
-
+                        
                 r._id = req._id
+                print r
                 send_message(f, r) 
 
         f.close()

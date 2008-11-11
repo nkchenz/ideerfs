@@ -47,7 +47,7 @@ class NetWorkIO:
             except socket.error, err:
                 print 'socket.error', err, '%ds used' % (time.time() - start)
                 if retry <= 0: # No more retrys
-                    raise SocketConnectError
+                    raise NoMoreRetryError('socket connect error')
                 print 'sleep %d seconds, %d more retrys' % (t, retry)
                 time.sleep(t)
                 t *= 2
@@ -71,7 +71,7 @@ class NetWorkIO:
                 self._connect()
                 # Only retry when connected, 
                 if retry <= 0:
-                    raise SocketSendError
+                    raise NoMoreRetryError('socket send error')
                 # Do not need sleep here
                 retry -= 1
 
@@ -79,6 +79,22 @@ class NetWorkIO:
         # What if error happens while read answer? Should we retry?
         # Set a timer here to get ack
         return read_message(self.socket)
+    
+    
+    def call(self, method, **args):
+        req = OODict()
+        req.method = method
+        for k, v in args.items():
+            req[k] = v
+        resp = self.request(req)
+        if 'error' in resp:
+            raise ResponseError(resp.error)
+        # Response must have 'value' if not have 'error'
+        # What about payload?
+        if 'payload' in resp:
+            return resp.value, resp.payload
+        else:
+            return resp.value
 
 '''
 socket.check from kfs
