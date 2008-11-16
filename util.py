@@ -1,12 +1,21 @@
+#!/usr/bin/python
+# coding: utf8
+
 import os
 from oodict import OODict
 from pprint import pformat
+import hashlib
 
 from exception import *
 
 class Service:
     def _error(self, message):
         raise RequestHandleError(message)
+    
+    def _id2path(self, id):
+        """Map object id number to storage path, this can be changed to other methods"""
+        hash = hashlib.sha1(str(id)).hexdigest()
+        return os.path.join(hash[:3], hash[3:6], hash[6:])
 
 class ConfigManager:
     def __init__(self, root):
@@ -69,6 +78,31 @@ def byte2size(n):
 def log(s):
     print str(s)
     
-def debug(s):
-    print str(s)
+def debug(*vars):
+    for var in vars:
+        print str(var),
+    print
     
+    
+def zeros(n):
+    return '\0' * n
+
+
+def filter_req(req):
+    """Filter payload of req, for debug use"""
+    tmp = {}
+    for k, v in req.items():
+        if k == 'payload':
+            tmp['payload-length'] = len(v)
+        else:
+            tmp[k] = v
+    return tmp
+
+
+def object_path(id):
+    """Map object id number to storage path, this can be changed to other methods"""
+    hash = hashlib.sha1(str(id)).hexdigest()
+    return os.path.join(hash[:3], hash[3:6], hash[6:])
+
+def chunk_path(id, chunk_id, version):
+    return '.'.join([object_path(id), str(chunk_id), str(version)])

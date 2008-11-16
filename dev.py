@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# coding: utf8
+
 import sys
 from oodict import OODict
 from util import *
@@ -23,14 +26,19 @@ class Dev:
         self.config = OODict(args)
     
     def assert_status(self, status):
-        if not self.config:
-            print 'not formatted'
-            sys.exit(-1)
-        
-        if self.config.status not in status:
-            print 'status not in', status
+        try:
+            self.check_status(status)
+        except IOError, err:
+            print err.message
             sys.exit(-1)
     
+    def check_status(self, status):
+        if not self.config:
+            raise IOError('not formatted')
+        
+        if self.config.status not in status:
+            raise IOError('status not in ' + str(status))
+            
     def change_status(self, status):
         self.config.status = status
         self.config_manager.save(self.config, self.config_file)

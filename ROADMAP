@@ -229,6 +229,13 @@ b.parent要动态绑定
 
 """
 There shall be a way to tell which file does a chunk belong to on chunkserver
+
+v0
+princple version
+-no transactions
+-no locks
+-no use then
+
 v1
 -seq chunk write, do not support stride
 -only replicate chunk
@@ -236,9 +243,11 @@ v1
 -meta rw is different from chunk rw
 
 -single fs, single dataset and single storage pool
-
+-1w loc
 
 v2
+
+v3
 -everything is a object
 -every object has a replication factor
 -cow, easy snapshot
@@ -250,42 +259,9 @@ snapshot
 the latest one aka current rf
 -chunk file always point back to the oldest snapshot who share this chunk
 
-
-princple version
--no transactions
--no locks
--no use then
+v4
 
 
-f
-
-
-
-
-
-"""
-
-
-
-
-
-
-
-class Chunk(OODict):
-    pass
-    
-
-
-class File(Object):
-    
-    def __init__(self):
-        pass
-        
-    def serialize():
-        pass
-
-
-data = '''
 ZFS uses a copy-on-write, transactional object model. All block pointers within 
 the filesystem contain a 256-bit checksum of the target block which is verified 
 when the block is read. Blocks containing active data are never overwritten in 
@@ -294,7 +270,6 @@ then any metadata blocks referencing it are similarly read, reallocated, and
 written. To reduce the overhead of this process, multiple updates are grouped 
 into transaction groups, and an intent log is used when synchronous write 
 semantics are required.
-'''
 
 def split_chunks(data, size):
     # If size is 0, or data is empty, return []
@@ -312,19 +287,10 @@ def split_chunks(data, size):
         offset = offset2
     return chunks
 
-f = File()
-f.name = 'zfs snapshot'
-f.size = len(data)
-f.chunk_size = 128
-f.replicate_facotr = 3
-f.chunks = []
 
-#pprint.pprint(f)
+relationship:  meta, storage, chunk
 
-for chunk in split_chunks(data, f.chunk_size):
-    o = Object(chunk)
-    f.chunks.append(o.id)
 
-print f.chunks
 
-print Object(f).id
+
+

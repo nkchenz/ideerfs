@@ -41,8 +41,8 @@ class Server:
                 break
             try:
                 conn = self.socket.accept()
-                self.request_handler(conn) # For debug only
-                #thread.start_new_thread(self.request_handler, (conn,))
+                #self.request_handler(conn) # For debug only
+                thread.start_new_thread(self.request_handler, (conn,))
             except socket.error, err:
                 if err[0] == 4:
                     print 'CTRL+C'

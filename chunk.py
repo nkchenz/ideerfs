@@ -80,7 +80,7 @@ class Chunk:
         if offset + len(data) > self.header.size:
             raise IOError('chunk write out of range')
         
-        new_data = self.data[:req.offset] + data + self.data[req.offset + len(data):]
+        new_data = self.data[:offset] + data + self.data[offset + len(data):]
         # We do not write new_data to disk here because in that case chunk file
         # will has no holes on lower layer disk fs
         self.header.algo = 'sha1'

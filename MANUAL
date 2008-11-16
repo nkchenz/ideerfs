@@ -345,5 +345,30 @@ ideer@ideer:/chenz/source/ideerfs$ ./ideer.py job
 ideer@ideer:/chenz/source/ideerfs$ 
 
 
+chunk:
+filename like 37bacccdf19c0760cab7aec4a8359010b0.4.2
+4 is chunk_id, 2 is version, 37ba.. is file_id sha1 hash
 
+every chunk file has a header of 1024 bytes, dict contains:
+    size  size of the chunk
+    algo  algorithm used for checksumming
+    checksum
 
+write
+    req.dev_path = '/data/sdb'
+    req.object_id = 2
+    req.chunk_id = 4
+    req.version = 2
+    req.offset = 0
+    req.payload = '0123456789'
+    req.is_new = False
+if it's a new chunk, need specific chunk size:
+    req.chunk_size = 1024 * 1024 * 64
+
+read
+    req.dev_path = '/data/sdb'
+    req.object_id = 2
+    req.chunk_id = 4
+    req.version = 2
+    req.offset = 0
+    req.len = 10

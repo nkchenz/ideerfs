@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# coding: utf8
+
 import time
 import hashlib
 from oodict import OODict
@@ -12,8 +15,8 @@ class Object(OODict):
             'name': name
         }
         
-        if attr:
-            self.meta.attr = attr
+        for k,v in attr.items():
+            self.meta[k] = v
         
         if type == 'dir':
             self.children = {
@@ -21,4 +24,5 @@ class Object(OODict):
                 '..': parent_id
             }
         else:
+            self.meta['size'] = 0
             self.chunks = {}

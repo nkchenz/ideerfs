@@ -1,5 +1,5 @@
 #!/usr/bin/python
-#coding: utf8
+# coding: utf8
 
 import os
 import socket
@@ -16,6 +16,8 @@ class NetWorkIO:
 
     msg member begins with '_' is for maintain use only
 
+    Application layer should have its own open/close handshaking other than using
+    TCP's.
     """
 
     def __init__(self, ip, port):
@@ -26,7 +28,7 @@ class NetWorkIO:
 
         # Retry numbers on socket connect error
         self.retrys_on_socket_connect_error = 5
-        self.retrys_on_socket_send_error = 3
+        self.retrys_on_socket_send_error = 0
 
         self.socket = None
         self.remote_ip = ip
@@ -96,6 +98,9 @@ class NetWorkIO:
             return resp.value, resp.payload
         else:
             return resp.value
+
+    def close(self):
+        self.socket.close()
 
 '''
 socket.check from kfs

@@ -3,6 +3,9 @@
 
 import os
 import sys
+import pprint
+import hashlib
+
 from nlp import NLParser
 from oodict import OODict
 from fs import FileSystem
@@ -10,6 +13,7 @@ from fs import FileSystem
 from util import *
 from nio import *
 from dev import *
+
 
 from obj import Object
 
@@ -65,6 +69,7 @@ class StorageAdmin:
         dev.init(args)
         dev.change_status('offline')
         
+        # Create necessary files for meta device
         if args.data_type == 'meta':
             root_id = 1
             dev.config_manager.save(root_id, 'seq')
@@ -119,7 +124,7 @@ class StorageAdmin:
         """
         data = self.nio_storage.call('storage.stat')
         for k, v in data.items():
-            print '%s: %s' % (k, v)
+            print '%s: %s' % (k, pprint.pformat(v))
             
         #print 'Total_disks, invalid_disks'
         #print 'Pool Capacity:'
@@ -135,11 +140,16 @@ class FSShell:
             'lsdir $dir': 'lsdir',
             'mkdir $dirs': 'mkdir',
             'exists $file': 'exists',
+            'get_file_meta $file': 'get_file_meta', 
+            'get_chunk_info $file $chunk_id': 'get_chunk_info',
             'get $attrs of $file': 'get_file_meta', 
             'set $attrs of $file to $values': 'set_file_attr',
             'delete $file $mode': 'delete',  # mode is recursively
             'mv $old $new': 'mv',
-            'cp src $src dest $dest': 'cp',
+            'store $localfile $file': 'store', # cp from local
+            'restore $file $localfile': 'restore', # cp to local
+            #'cp src $src dest $dest': 'cp',
+            'cp $src $dest': 'cp',
             'stat': 'stat',
             'touch $files': 'touch', 
             'cd $dir': 'cd',
@@ -167,9 +177,53 @@ class FSShell:
         meta = self.fs.get_file_meta(dir)
         if meta and meta.type == 'dir':
             self.cm.save(dir, 'pwd')
+    
+    def get_file_meta(self, args):
+        file = self._normpath(args.file)
+        print self.fs.get_file_meta(file)
         
+    def get_chunk_info(self, args):
+        file = self._normpath(args.file)
+        meta = self.fs.get_file_meta(file)
+        info = self.fs.get_chunk_info(file, int(args.chunk_id))
+        if not info:
+            print 'no such chunk'
+            return
+        print 'chunk', chunk_path(meta.id, args.chunk_id, info.version)
+        for k, v in info.locations.items():
+            print '%s@%s' % (v['path'], v['host']) 
+        
+    def store(self, args):
+        src = args.localfile
+        if not os.path.exists(src):
+            print src, 'not exists'
+            return
+        # Read local file
+        data = open(src, 'rb').read()
+        dest = self._normpath(args.file)
+        # Create new file and write
+        self.fs.create(dest, replication_factor = 3, chunk_size = 67108864)
+        f = self.fs.open(dest)
+        f.write(0, data)
+        
+    def restore(self, args):
+        file = self._normpath(args.file)
+        meta = self.fs.get_file_meta(file)
+        f = self.fs.open(file)
+        data = f.read(0, meta.size)
+        open(args.localfile, 'w').write(data)
+        
+            
     def cp(self, args):
-        print args
+        src = self._normpath(args.src)
+        dest = self._normpath(args.dest)
+        meta = self.fs.get_file_meta(src)
+        f = self.fs.open(src)
+        data = f.read(0, meta.size)
+        
+        self.fs.create(dest, replication_factor = 3, chunk_size = 67108864)
+        f = self.fs.open(dest)
+        f.write(0, data)
         
 
     def exists(self, args):
@@ -225,7 +279,7 @@ if cmd_class not in command_sets:
 # Set dispatcher and rules for nlp
 nlp = NLParser(command_sets[cmd_class])
 input = ' '.join(sys.argv[2:])
-#try:
-nlp.parse(input)
-#except IOError, err:
-#    print err.message
+try:
+    nlp.parse(input)
+except IOError, err:
+    print err.message

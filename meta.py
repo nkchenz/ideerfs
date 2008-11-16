@@ -1,8 +1,9 @@
+#!/usr/bin/python
+# coding: utf8
 
 from util import *
 from dev import *
 import time
-import hashlib
 
 from obj import Object
 
@@ -16,7 +17,6 @@ class MetaService(Service):
     """
 
     def __init__(self, path):
-        self.storage_pool = None
         self.dev = Dev(path)
         if not self.dev.config:
             print 'not formatted', path
@@ -42,16 +42,13 @@ class MetaService(Service):
         #return hashlib.sha1.hexdigest(str(seq))
         return seq
     
-    def _id2path(self, id):
-        """Map object id number to storage path, this can be changed to other methods"""
-        hash = hashlib.sha1(str(id)).hexdigest()
-        return os.path.join(hash[:3], hash[3:6], hash[6:])
+
 
     def _get_object(self, id):
         return self.dev.config_manager.load(os.path.join(self.meta_dir, self._id2path(id)))
 
     def _save_object(self, obj):
-        # Check if object exists?
+        # Check if object already exists?
         self.dev.config_manager.save(obj, os.path.join(self.meta_dir, self._id2path(obj.id)))
 
     def _isdir(self, obj):
@@ -63,6 +60,9 @@ class MetaService(Service):
             return self._get_object(self.root_id)
         names = file.split('/')
         names.pop(0) # Remove
+        debug('lookup ' + file)
+        debug(names)
+        debug('/', self.root_id)
         parent_id = self.root_id
         for name in names:
             parent = self._get_object(parent_id)
@@ -71,7 +71,8 @@ class MetaService(Service):
             if name not in parent.children:
                 return None
             id = parent.children[name]
-            parent = id
+            debug(name, id)
+            parent_id = id
         return self._get_object(id)
         
     def exists(self, req):
@@ -84,7 +85,23 @@ class MetaService(Service):
         obj = self._lookup(req.file)
         if not obj:
             self._error('no such file or directory')
+        obj.meta.id = obj.id # Object id returned for convenience
         return obj.meta
+
+    def set(self, req):
+        obj = self._lookup(req.file)
+        if not obj:
+            self._error('no such file or directory')
+        for k,v in req.attrs.items():
+            # You may want to validiate attr k here
+            if k == 'chunks':
+                for chunk_id, info in v.items():
+                    obj.chunks[chunk_id] = info
+                continue
+            obj.meta[k] = v
+        obj.meta.mtime = '%d' % time.time()
+        self._save_object(obj)
+        return 'ok'
 
     def lsdir(self, req): 
         obj = self._lookup(req.dir)
@@ -111,6 +128,7 @@ class MetaService(Service):
         parent_name = os.path.dirname(file)
         myname = os.path.basename(file)
         
+        # Try to create root
         if not myname:
             self._error('root exists')
         
@@ -135,3 +153,17 @@ class MetaService(Service):
         self._save_object(new_file)
         
         return id
+
+    def get_chunk_info(self, req):
+        """
+        Get info of chunk_id. If chunk does not exist, it means that it's hole 
+        in file or out of range, just return None, let upper layer handle it.
+        """
+        f = self._lookup(req.file)
+        if f is None or self._isdir(f):
+            self._error('no such file or is a directory' % req.file)
+        
+        if req.chunk_id not in f.chunks:
+            return None
+        return f.chunks[req.chunk_id]
+    

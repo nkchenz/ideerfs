@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# coding: utf8
+
 """
  hadoop@ubuntu:/usr/local/hadoop$ bin/hadoop jar contrib/streaming/hadoop-0.18.0
  -streaming.jar -mapper /home/hadoop/mapper.py -reducer /home/hadoop/reducer.py 

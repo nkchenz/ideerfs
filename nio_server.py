@@ -35,30 +35,35 @@ class NIOServer(Server):
                 if not req: 
                     break
                 
-                debug(req)
+                debug('Request:', filter_req(req))
                 
                 service, method = req.method.split('.')
                 r = OODict()
+                error = ''
                 if service not in self.services:
-                    r.error = 'unknown serice %s' % service
+                    error = 'unknown serice %s' % service
                 else:
                     try:
                         handler = getattr(self.services[service], method)
-                        try:
-                            returns = handler(req)
-                            # For complicated calls, read for example, should return a tuple: value, payload
-                            if isinstance(returns, tuple):
-                                r.value, r.payload = returns
-                            else:
-                                r.value = returns
-                        except RequestHandleError, err:
-                            #print dir(err)
-                            r.error = err.message
                     except AttributeError:
-                        r.error = 'unknown method %s' % method
+                        error = 'unknown method %s' % method
                         
+                if not error:
+                    try:
+                        returns = handler(req)
+                        # For complicated calls, read for example, should return a tuple: value, payload
+                        if isinstance(returns, tuple):
+                            r.value, r.payload = returns
+                        else:
+                            r.value = returns
+                    except RequestHandleError, err:
+                        #print dir(err)
+                        error = err.message
+
+                if error:
+                    r.error = error
                 r._id = req._id
-                print r
+                debug('Response:', filter_req(r))
                 send_message(f, r) 
 
         f.close()
@@ -70,7 +75,7 @@ if __name__ == '__main__':
     server.register('chunk', ChunkService())
     server.register('storage', StorageService())
     # Meta service and Storage Service are on the same node
-    server.services['meta'].storage_pool = server.services['storage']
+    #server.services['meta'].storage_pool = server.services['storage']
     
     server.bind('localhost', 1984)
     server.mainloop()
