@@ -72,7 +72,7 @@ def size2byte(s):
 def byte2size(n):
     units=['', 'k', 'm', 'g', 't', 'p']
     for i in range(0, len(units)):
-        if n < 1024 ** (i+1) or i == len(units):
+        if n < 1024 ** (i+2) or i == len(units):
             return '%d%s' % (n / (1024 ** i), units[i])
 
 def log(s):

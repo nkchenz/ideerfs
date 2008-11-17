@@ -123,8 +123,11 @@ class StorageAdmin:
         # total_disks, invalid_disks
         """
         data = self.nio_storage.call('storage.stat')
-        for k, v in data.items():
-            print '%s: %s' % (k, pprint.pformat(v))
+        for dev in data.disks.values():
+            dev = OODict(dev)
+            print '%-20s%-20s%8s/%-8s%-42s' %(dev.host, dev.path, \
+                byte2size(dev.used), byte2size(dev.size), dev.id)
+            #print '%s: %s' % (k, pprint.pformat(v))
             
         #print 'Total_disks, invalid_disks'
         #print 'Pool Capacity:'

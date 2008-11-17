@@ -61,12 +61,26 @@ class Chunk:
             os.makedirs(d)
         
         f = open(file, 'w') # Writing, truncate if exists
-        f.seek(CHUNK_HEADER_SIZE + self.header.size - 1)
-        f.write('\0')
+        f.truncate(CHUNK_HEADER_SIZE + self.header.size)
         f.close()
+    
         
+    def _get_file_real_size(self, file):
+        s = os.stat(file)
+        if hasattr(s, 'st_blocks'):
+            # st_blksize is wrong on my linux box, should be 512. Some smaller file
+            # about 10k use 256 blksize, I don't know why.
+            #Linux ideer 2.6.24-21-generic #1 SMP Mon Aug 25 17:32:09 UTC 2008 i686 GNU/Linux
+            #Python 2.5.2 (r252:60911, Jul 31 2008, 17:28:52) 
+            return s.st_blocks * 512 #s.st_blksize
+        else:
+            # If st_blocks is not supported
+            return s.st_size
+    
     def write(self, file, offset, data):
         """Write to existing file"""
+        self.old_real_size = self._get_file_real_size(file)
+        
         # May raise IOError
         f = open(file, 'r+') # Update file
         # Write header, fix-length 1024 bytes from file start
@@ -75,6 +89,9 @@ class Chunk:
         f.seek(offset + CHUNK_HEADER_SIZE)
         f.write(data)
         f.close()
+        
+        self.real_size = self._get_file_real_size(file)
+        debug('chunk size:', file, self.real_size, self.old_real_size)
         
     def update_checksum(self, offset, data):
         if offset + len(data) > self.header.size:
@@ -115,7 +132,6 @@ class ChunkService(Service):
         return os.path.join(dev_path, 'OBJECTS', \
             self._get_chunk_filename(object_id, chunk_id, version))
       
-    
     def _check_dev_status(self, path, status):
         dev = Dev(path)
         try:
@@ -137,24 +153,28 @@ class ChunkService(Service):
         chunk = Chunk()
         file = self._get_chunk_filepath(req.dev_path, req.object_id, req.chunk_id, req.version)
         try:
-            if not req.is_new:
-                old_file = self._get_chunk_filepath(req.dev_path, req.object_id, req.chunk_id, req.version - 1)
-                chunk.read(old_file)
-                chunk.update_checksum(req.offset, req.payload)
-                chunk.write(old_file, req.offset, req.payload)
-                os.rename(old_file, file) # Rename it to new version
-            else:
-                # There should be a safe limit of free space
-                if dev.config.size - dev.config.used < req.chunk_size * 3:
-                    self._error('no space for chunk')
+            # There should be a safe limit of free space. Even if it's a old existing
+            # chunk, we may write to hole in it, so still need extra space check
+            if dev.config.size - dev.config.used < len(req.payload) * 3:
+                self._error('no space for chunk')
+            
+            if req.is_new:
                 # Create chunk file on disk, there is possibility that chunk file 
                 # is left invalid on disk if it has not been written to disk successfully
                 chunk.touch(file, req.chunk_size) 
                 chunk.update_checksum(req.offset, req.payload)
                 chunk.write(file, req.offset, req.payload)
                 # Update dev stat finally
-                dev.config.used += req.chunk_size
-                dev.config_manager.save(dev.config, dev.config_file)
+                dev.config.used += chunk.real_size
+            else:
+                old_file = self._get_chunk_filepath(req.dev_path, req.object_id, req.chunk_id, req.version - 1)
+                chunk.read(old_file)
+                chunk.update_checksum(req.offset, req.payload)
+                chunk.write(old_file, req.offset, req.payload)
+                os.rename(old_file, file) # Rename it to new version
+                dev.config.used += chunk.real_size - chunk.old_real_size 
+
+            dev.config_manager.save(dev.config, dev.config_file)
         except IOError, err:
             self._error(err.message)
         # pipe write

@@ -76,6 +76,8 @@ class StorageService(Service):
         return 0
         
     def stat(self, req):
+        # Iterate dev cache to get realtime stat here, disk stat is carried with
+        # chunk server's heart-beat message
         return  {'summary': self.statistics, 'disks': self.cache}
     
     def alloc_chunk(self, req):
@@ -108,11 +110,13 @@ class StorageService(Service):
         # Maybe it's better not to caculate the size here. Because some writes
         # to the returned devices may fail, it's not accurate anyway
         # Update pool stat
-        self.statistics.used += req.chunk_size * len(devs)
+        #self.statistics.used += req.chunk_size * len(devs)
         # Update dev stat
-        for id, dev in devs.items():
-            self.cache[id].used += req.chunk_size
-        self._flush()
+        #for id, dev in devs.items():
+        #    self.cache[id].used += req.chunk_size
+        #self._flush()
+        # This alloc is just a suggestion devs, user will get no space error from
+        # chunk server anyway
         return devs
         
     def free_chunk(self, req):
