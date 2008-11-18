@@ -125,8 +125,10 @@ class StorageAdmin:
         data = self.nio_storage.call('storage.stat')
         for dev in data.disks.values():
             dev = OODict(dev)
-            print '%-20s%-20s%8s/%-8s%-42s' %(dev.host, dev.path, \
-                byte2size(dev.used), byte2size(dev.size), dev.id)
+            print '%s@%s %s/%s %d%%' %(dev.path, dev.host, \
+                byte2size(dev.used), byte2size(dev.size), dev.used * 100 / dev.size)
+            #print '%-20s%-20s%8s/%-8s%-42s' %(dev.host, dev.path, \
+            #    byte2size(dev.used), byte2size(dev.size), dev.id)
             #print '%s: %s' % (k, pprint.pformat(v))
             
         #print 'Total_disks, invalid_disks'
@@ -254,7 +256,7 @@ class FSShell:
     def touch(self, args):
         for file in args.files.split():
             file = self._normpath(file)
-            self.fs.create(file, replication_factor = 3, chunk_size = 67108864)
+            self.fs.create(file, replication_factor = 3, chunk_size = 2 ** 25) #32m
 
 class JobController:
     def __init__(self):
