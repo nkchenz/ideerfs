@@ -13,7 +13,6 @@ class MetaService(Service):
     
     all object except data chunk object are stored on meta dev. There are only 
     one metadev in the whole system.
-    
     """
 
     def __init__(self, path):
@@ -76,19 +75,31 @@ class MetaService(Service):
         return self._get_object(id)
         
     def exists(self, req):
+        """Check if a file exists"""
         if self._lookup(req.file):
             return True
         else:
             return False
 
     def get(self, req):
+        """
+        Get 'meta' attribute of a file
+        
+        object id is returned too for convenience
+        """
         obj = self._lookup(req.file)
         if not obj:
             self._error('no such file or directory')
-        obj.meta.id = obj.id # Object id returned for convenience
+        obj.meta.id = obj.id # Object id returned for 
         return obj.meta
 
     def set(self, req):
+        """
+        Set file attributes in 'meta'.
+        
+        'chunks' of a file is kinda meta too, just like 'children' of a dir, we
+        do not put them in 'meta' because they are usually too large. Shall we?
+        """
         obj = self._lookup(req.file)
         if not obj:
             self._error('no such file or directory')
@@ -104,6 +115,9 @@ class MetaService(Service):
         return 'ok'
 
     def lsdir(self, req): 
+        """Get all the children names fo a dir
+        This should be splitted for large dirs.
+        """
         obj = self._lookup(req.dir)
         if obj is None:
             self._error('no such directory')
@@ -116,6 +130,7 @@ class MetaService(Service):
         return 1, 'This is payload test'
 
     def create(self, req):
+        """Create a file with given attributes"""
         # Check args: file, type, attr !fixme
         file = os.path.normpath(req.file)
     
@@ -156,8 +171,14 @@ class MetaService(Service):
 
     def get_chunk_info(self, req):
         """
-        Get info of chunk_id. If chunk does not exist, it means that it's hole 
-        in file or out of range, just return None, let upper layer handle it.
+        Get infomations of a chunk, about which devices it's stored on.
+        
+        If chunk does not exist, it's hole in file or out of range, return None, 
+        and leave it to upper layer handle this.
+        
+        Maybe this shall in storage layer. Meta layer shall only provide which file
+        contains which chunks. Once locations are concerned, please go and ask 
+        storage layer.
         """
         f = self._lookup(req.file)
         if f is None or self._isdir(f):

@@ -164,7 +164,6 @@ class File:
         if not info: # This chunk is a hole 
             return zeros(len)
         
-        data = ''
         for id, dev in info.locations.items():
             try:
                 dev = OODict(dev)
@@ -196,12 +195,12 @@ class File:
         offset_in_chunk = offset % meta.chunk_size
         window_len = meta.chunk_size - offset_in_chunk
         done_len = 0
-        data = ''
+        data = []
         while True:
             if done_len + window_len >= bytes:
                 # If reading window is larger than needed, decrease it
                 window_len = bytes - done_len
-            data += self._read_chunk(meta, chunk_id, offset_in_chunk, window_len)
+            data.append(self._read_chunk(meta, chunk_id, offset_in_chunk, window_len))
             done_len += window_len
             if done_len >= bytes:
                 break
@@ -209,7 +208,7 @@ class File:
             chunk_id += 1
             offset_in_chunk = 0
             
-        return data
+        return ''.join(data)
         
     
     def flush():
