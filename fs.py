@@ -59,7 +59,7 @@ class FileSystem:
         
     def alloc_chunk(self, chunk_size, n):
         """Alloc n new chunks"""
-        return self.nio_storage.call('storage.alloc_chunk', chunk_size = chunk_size, \
+        return self.nio_storage.call('storage.get_free_dev', size = chunk_size, \
             n = n)
             
     def free_chunk(self, chunk):

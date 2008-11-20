@@ -372,3 +372,15 @@ read
     req.version = 2
     req.offset = 0
     req.len = 10
+    
+    
+    
+3 layers Model:
+    Meta
+    Storage
+    Chunk
+
+meta layer is only about files and dirs, storage is layer care about placement, 
+and  replications, reference count, chunk layer is mainly the memory.
+ 
+client may interact with any of this layer regarding to each operations 

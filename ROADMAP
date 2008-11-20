@@ -290,11 +290,12 @@ def split_chunks(data, size):
 
 relationship:  meta, storage, chunk
 
+
 TODO:
 - space management
 - delete
+- client buffer
 - hashlist
-- journal
+- *** journal and recovery
 - mapreduce
-
-
+- heart beat message

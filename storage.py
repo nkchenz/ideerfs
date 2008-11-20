@@ -80,15 +80,14 @@ class StorageService(Service):
         # chunk server's heart-beat message
         return  {'summary': self.statistics, 'disks': self.cache}
     
-    def alloc_chunk(self, req):
+    def get_free_dev(self, req):
         """
-        Find free devices for n chunks, return dev list
+        return n devices each having free space larger than size bytes
         """
-        size = req.chunk_size * req.n
-        if size > self.statistics.size - self.statistics.used:
+        if req.size * req.n > self.statistics.size - self.statistics.used:
             self._error('no space available')
     
-        debug('alloc chunk', req.chunk_size, req.n)
+        debug('get_free_dev', req.size, req.n)
             
         # Alloc algorithm, we'd better has a list on which devs are sorted by
         # free space
@@ -97,7 +96,7 @@ class StorageService(Service):
         random.shuffle(all_dev_ids)
         for dev_id in all_dev_ids:
             dev = self.cache[dev_id]
-            if dev.status == 'online' and dev.size - dev.used > req.chunk_size:
+            if dev.status == 'online' and dev.size - dev.used > req.size:
                 devs[dev_id] = dev
                 if len(devs) >= req.n:
                     break
