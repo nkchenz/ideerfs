@@ -229,9 +229,10 @@ class MetaService(Service):
     
         There shall be a .trash dir to store it first, auto delete 30 days later
         """
+        req.file = os.path.normpath(req.file)
         
         if req.file == '/':
-            self._error('try to delete root')
+            self._error('attempt to delete root')
     
         parent = self._lookup(os.path.dirname(req.file))
         name = os.path.basename(req.file)
@@ -258,6 +259,46 @@ class MetaService(Service):
         del parent.children[name]
         self._save_object(parent)
         
+        return 'ok'
+    
+    
+    def rename(self, req):
+        """Rename oldfile to newfile
+        oldfile and parent of newfile must exist
+        """
+        req.old_file = os.path.normpath(req.old_file)
+        req.new_file = os.path.normpath(req.new_file)
+        
+        if req.old_file == req.new_file:
+            self._error('same name')
+        
+        if req.old_file == '/' or req.new_file == '/':
+            self._error('attempt to rename root')
+
+        old_parent_name = os.path.dirname(req.old_file)
+        old_parent = self._lookup(old_parent_name)
+        old_name = os.path.basename(req.old_file)
+        if not old_parent or old_name not in old_parent.children:
+            self._error('old file not exists')
+        
+        new_parent_name = os.path.dirname(req.new_file)
+        if old_parent_name == new_parent_name:
+            new_parent = old_parent
+        else:
+            new_parent = self._lookup(new_parent_name)
+            if not new_parent or new_parent.type != 'dir':
+                self._error('no such directory ' + new_parent_name) 
+        new_name = os.path.basename(req.new_file)
+        if new_name in new_parent.children:
+            self._error('new file exists') 
+        
+        # Let's begin
+        new_parent.children[new_name] = old_parent.children[old_name]
+        del old_parent.children[old_name]
+        
+        self._save_object(old_parent)
+        if old_parent_name != new_parent_name:
+            self._save_object(new_parent)
         return 'ok'
     
 

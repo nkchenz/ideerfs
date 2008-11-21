@@ -150,7 +150,7 @@ class FSShell:
             'get $attrs of $file': 'get_file_meta', 
             'set $attrs of $file to $values': 'set_file_attr',
             'rm $files': 'rm',
-            'mv $old $new': 'mv',
+            'mv $old_file $new_file': 'mv',
             'store $localfile $file': 'store', # cp from local
             'restore $file $localfile': 'restore', # cp to local
             #'cp src $src dest $dest': 'cp',
@@ -269,6 +269,11 @@ class FSShell:
         for file in files:
             file = self._normpath(file)
             self.fs.delete(file, recursive)
+            
+    def mv(self, args):
+        old_file = self._normpath(args.old_file)
+        new_file = self._normpath(args.new_file)
+        self.fs.mv(old_file, new_file)
 
 class JobController:
     def __init__(self):

@@ -70,9 +70,8 @@ class FileSystem:
     def mkdir(self, dir):
         return self.nio_meta.call('meta.create', file = dir, type = 'dir')
             
-    def mv():
-        # Rename
-        pass
+    def mv(self, old_file, new_file):
+        return self.nio_meta.call('meta.rename', old_file = old_file, new_file = new_file)
         
     def open(self, file):
         """"
