@@ -26,9 +26,12 @@ class ConfigManager:
         """Auto convert dict to OODict, if None return default value"""
         f = os.path.join(self.root, file)
         if os.path.exists(f):
-            result = eval(open(f, 'r').read())
+            content = open(f, 'r').read()
+            if not content: # Empty file
+                return default
+            result = eval(content)
             if isinstance(result, dict):
-                return OODict(result)
+                return OODict(result) # Auto convert dict to OODict
             else:
                 if result is None:
                     return default
@@ -43,8 +46,23 @@ class ConfigManager:
         d = os.path.dirname(f)
         if not os.path.exists(d):
             os.makedirs(d)
-        open(f, 'w+').write(pformat(config))
+        fp = open(f, 'w+')
+        fp.write(pformat(config))
+        fp.close()
+    
+    def remove(self, file):
+        file = os.path.join(self.root, file)
+        os.remove(file)
+        try:
+            # Remove empty dirs as more as possible
+            os.removedirs(os.path.dirname(file))
+        except:
+            pass
 
+    def append(self, data, file):
+        fp = open(os.path.join(self.root, file), 'a')
+        fp.write(data)
+        fp.close()
 
 # Misc functions
 def size2byte(s):

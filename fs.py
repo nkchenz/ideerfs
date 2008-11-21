@@ -20,30 +20,14 @@ class FileSystem:
         #self.nio_storage = NetWorkIO('localhost', 1984)
         self.nio_storage = self.nio_meta
 
-    '''
-    def _create(self, file, type, attr):
-        req = OODict()
-        req.method = 'meta.create'
-        req.file =  file
-        req.type = type
-        req.attr = attr
-        result = self.nio_meta.request(req)
-        if 'error' in result:
-            print result.error
-            return False
-        else:
-            return True
-    '''
-
     def create(self, file, **attr):
         """Create new files with attrs: replication factor, bs, permission
         foo.create('/kernel/sched.c', replication_factor = 3, chunk_size = '64m')
         """
         return self.nio_meta.call('meta.create', file = file, type = 'file', attr = attr)
 
-    def delete(self, file, recursive = False):
-        # mv to /trash
-        pass
+    def delete(self, file, recursive):
+        return self.nio_meta.call('meta.delete', file = file, recursive = recursive)
     
     def exists(self, file):
         return self.nio_meta.call('meta.exists', file = file)
@@ -127,7 +111,6 @@ class FileSystem:
         # It's better if there is a way to get 
         pass
     '''
-
 
 
 class File:

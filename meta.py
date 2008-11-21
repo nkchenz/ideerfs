@@ -9,8 +9,6 @@ from obj import Object
 
 class MetaService(Service):
     """
-    object id: sha1 of path, everything is object, include attrs, metas, dir, file
-    
     all object except data chunk object are stored on meta dev. There are only 
     one metadev in the whole system.
     """
@@ -29,6 +27,8 @@ class MetaService(Service):
             print 'root object not found'
             sys.exit(-1)
             
+        self.deleted_chunks_file = 'deleted_chunks'
+            
 
     def _next_seq(self):
         # We should get a multi thread lock here to protect 'SEQ' file
@@ -41,7 +41,8 @@ class MetaService(Service):
         #return hashlib.sha1.hexdigest(str(seq))
         return seq
     
-
+    def _delete_object(self, id):
+        self.dev.config_manager.remove(os.path.join(self.meta_dir, self._id2path(id)))
 
     def _get_object(self, id):
         return self.dev.config_manager.load(os.path.join(self.meta_dir, self._id2path(id)))
@@ -51,7 +52,7 @@ class MetaService(Service):
         self.dev.config_manager.save(obj, os.path.join(self.meta_dir, self._id2path(obj.id)))
 
     def _isdir(self, obj):
-        return obj.meta.type == 'dir'
+        return obj.type == 'dir'
 
     def _lookup(self, file):
         """Find a absolute path"""
@@ -90,7 +91,8 @@ class MetaService(Service):
         obj = self._lookup(req.file)
         if not obj:
             self._error('no such file or directory')
-        obj.meta.id = obj.id # Object id returned for 
+        obj.meta.id = obj.id
+        obj.meta.type = obj.type
         return obj.meta
 
     def set(self, req):
@@ -132,6 +134,8 @@ class MetaService(Service):
     def create(self, req):
         """Create a file with given attributes"""
         # Check args: file, type, attr !fixme
+        
+        # This should be performed to all 'file' arguments
         file = os.path.normpath(req.file)
     
         # Valid attrs names here
@@ -188,3 +192,78 @@ class MetaService(Service):
             return None
         return f.chunks[req.chunk_id]
     
+    
+    def _delete_recursive(self, obj):
+        for name, id in obj.children.items():
+            if name in ['.', '..']:
+                continue
+            
+            child = self._get_object(id)
+            if not child:
+                # Object already missing, so dont bother to delete
+                pass
+            if child.type == 'dir':
+                self._delete_recursive(child)
+            if child.type == 'file':
+                self._delete_file(child)
+        
+        # Delete self
+        self._delete_object(obj.id)
+    
+        
+    def _delete_file(self, obj):
+        """Delete file type object"""
+        chunks = []
+        for chunk_id, info in obj.chunks.items():
+            info = OODict(info)
+            line = '%d %d %d %s\n' % (obj.id, chunk_id, info.version, ','.join(info.dev_ids))
+            chunks.append(line)
+        if chunks:
+            self.dev.config_manager.append(''.join(chunks), self.deleted_chunks_file)
+        self._delete_object(obj.id)
+
+
+    def delete(self, req):
+        """Delete file, store the free chunks to file 'deleted_chunks', tell
+        it to storage manager in next hb message
+    
+        There shall be a .trash dir to store it first, auto delete 30 days later
+        """
+        
+        if req.file == '/':
+            self._error('try to delete root')
+    
+        parent = self._lookup(os.path.dirname(req.file))
+        name = os.path.basename(req.file)
+        if not parent or name not in parent.children:
+            self._error('no such file or directory')
+
+        obj = self._get_object(parent.children[name])
+        if obj:        
+            if obj.type == 'dir':
+                if len(obj.children) > 2:
+                    if not req.recursive:
+                        self._error('dir not empty')
+                # Delete dir recursively
+                self._delete_recursive(obj)
+        
+             #Delete file
+            if obj.type == 'file':
+                self._delete_file(obj)
+        else:
+            # Shall we return error?
+            #self._error('file object missing')
+            pass
+        # Delete entry in parent
+        del parent.children[name]
+        self._save_object(parent)
+        
+        return 'ok'
+    
+
+if __name__ == '__main__':
+    meta = MetaService('/data/sda')
+    req = OODict()
+    req.file = '/test'
+    req.recursive = True
+    meta.delete(req)

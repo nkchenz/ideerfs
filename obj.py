@@ -9,8 +9,8 @@ class Object(OODict):
 
     def __init__(self, name, id, parent_id, type, attr = {}):
         self.id = id
+        self.type = type
         self.meta = {
-            'type': type,
             'ctime': '%d' % time.time(),
             'name': name
         }

@@ -190,19 +190,21 @@ re-balancing chunk nodes
 cache consistency
 notify list
 
-
-=TODO=
-- space management
-- delete
-- client buffer
-- hashlist
-- *** journal and recovery
+=journal=
 Why doesn't ext3 get hit by this?  Well, because ext3 does physical
 block journalling.  This means that we write the entire physical block
 to the journal and, only have the updates to the journal are commited,
 do we write the data to the final location on disk.  So if you yank
 out the power cord, and inode tables get trashed, they will get
 restored when the journal gets replayed.
-- mapreduce
+
+
+=TODO=
+- space management
+- delete
 - heart beat message
+- client buffer
+- hashlist
+- *** journal and recovery
+- mapreduce
 - lookaside table cache

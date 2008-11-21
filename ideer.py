@@ -149,7 +149,7 @@ class FSShell:
             'get_chunk_info $file $chunk_id': 'get_chunk_info',
             'get $attrs of $file': 'get_file_meta', 
             'set $attrs of $file to $values': 'set_file_attr',
-            'delete $file $mode': 'delete',  # mode is recursively
+            'rm $files': 'rm',
             'mv $old $new': 'mv',
             'store $localfile $file': 'store', # cp from local
             'restore $file $localfile': 'restore', # cp to local
@@ -194,11 +194,12 @@ class FSShell:
         if not info:
             print 'no such chunk'
             return
-        print 'chunk', chunk_path(meta.id, args.chunk_id, info.version)
+        print chunk_path(meta.id, args.chunk_id, info.version)
         for k, v in info.locations.items():
             print '%s@%s' % (v['path'], v['host']) 
         
     def store(self, args):
+        """Store local file to the fs"""
         src = args.localfile
         if not os.path.exists(src):
             print src, 'not exists'
@@ -212,6 +213,7 @@ class FSShell:
         f.write(0, data)
         
     def restore(self, args):
+        """Restore file in the fs to local filesystem"""
         file = self._normpath(args.file)
         meta = self.fs.get_file_meta(file)
         f = self.fs.open(file)
@@ -242,7 +244,7 @@ class FSShell:
             return
         files = self.fs.lsdir(dir)
         if files:
-            print ' '.join(files)
+            print ' '.join(sorted(files))
 
     def mkdir(self, args):
         # dirs can't be empty because in that case we wont get here, cant pass nlp 
@@ -257,6 +259,16 @@ class FSShell:
         for file in args.files.split():
             file = self._normpath(file)
             self.fs.create(file, replication_factor = 3, chunk_size = 2 ** 25) #32m
+        
+    def rm(self, args):
+        files = args.files.split()
+        recursive = False
+        if files[0] in ['-r', '-R']:
+            recursive = True
+            files.pop(0)
+        for file in files:
+            file = self._normpath(file)
+            self.fs.delete(file, recursive)
 
 class JobController:
     def __init__(self):

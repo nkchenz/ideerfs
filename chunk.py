@@ -59,8 +59,10 @@ class Chunk:
         d = os.path.dirname(file)
         if not os.path.exists(d):
             os.makedirs(d)
-        
-        f = open(file, 'w') # Writing, truncate if exists
+            
+        # Writing, truncate if exists. This is dangerous if you use a wrong meta dev,
+        # object with the same id will be overwrited
+        f = open(file, 'w')
         f.truncate(CHUNK_HEADER_SIZE + self.header.size)
         f.close()
     
