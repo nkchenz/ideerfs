@@ -79,7 +79,10 @@ class NLParser:
             except AttributeError:
                 print 'operation not support:', name
                 sys.exit(-1)
-                
+            
+            if hasattr(self.dispatcher, '_pre_command'):
+                self.dispatcher._pre_command(name, args)
+            
             op(args)
             sys.exit(0)
             

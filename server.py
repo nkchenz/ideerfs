@@ -26,11 +26,8 @@ class Server:
         """Bind socket"""
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # For socket.error: (98, 'Address already in use')
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
-        try:
-            self.socket.bind((ip, port))
-        except:
-            return False
+        #self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
+        self.socket.bind((ip, port))
         return True
 
     def mainloop(self):

@@ -109,8 +109,10 @@ class Chunk:
 class ChunkService(Service):
     """
     """
-    def __init__(self):
+    def __init__(self, ip, port):
         self.CHUNK_HEADER_SIZE = 1024
+        self.storage_service_ip = ip
+        self.storage_service_port = port
         pass
         
     def _send_chunk_report(self):
@@ -210,7 +212,7 @@ if __name__ == '__main__':
     req.chunk_size = 1024 * 1024 * 64
     req.is_new = True
     
-    cs = ChunkService()
+    cs = ChunkService('localhost', 1984)
     print cs.write(req)
     
     req.len=10

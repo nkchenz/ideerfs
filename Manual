@@ -1,0 +1,105 @@
+Simple howto
+
+There are three kind of services:
+meta for namespace service, only has one meta device
+storage for storage management
+chunk for data services, may have many chunk devices
+
+Usually, each node in the cluster provides one service, but they can be at the
+same node as you will see in the following little example.
+
+
+1.format devices
+
+Make a meta device /data/sda
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sda size 10g host localhost for meta data
+format ok
+
+And two chunk devices /data/sdb, /data/sdc
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdb size 10g host localhost for chunk data
+format ok
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdc size 10g host localhost for chunk data
+format ok
+
+
+2. start services
+
+before start the meta service, you need to tell me which device you want to use as 
+meta device
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py service use /data/sda as meta device
+ideer@ideer:/chenz/source/ideerfs$ 
+
+start all the services on localhost, port 1984
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py service start meta, storage, chunk at localhost:1984
+meta service registered
+storage service registered
+chunk service registered
+start server ok
+
+servers is running now.
+
+
+* start services on different nodes, we do not need this in this example
+
+node A 192.168.1.100:
+    ideer.py service use /data/sda as meta device
+    ideer.py service start meta at 192.168.1.100:1984 
+    
+node B 192.168.1.101:
+    # Storage service needs to know where is meta service
+    ideer.py service meta at 192.168.1.100:1984
+    ideer.py service start storage at 192.168.1.101:1984
+    
+node C 192.168.1.102:
+    # Chunk service needs to know where is storage service
+    ideer.py service storage at 192.168.101:1984
+    ideer.py service start chunk at 192.168.1.102:1984
+
+
+
+3. online chunk devices
+tell this node where is the storage service
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py service storage at localhost:1984
+
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage online /data/sdb
+online ok
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage online /data/sdc
+online ok
+
+
+4. fs shell
+Tell this node where is the meta service
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py service meta at localhost:1984
+
+ok, let's rolling out
+
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs lsdir
+. ..
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs pwd
+/
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs mkdir d1 d2 d3
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs touch f1 f2 f3
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs lsdir
+. .. d1 d2 d3 f1 f2 f3
+
+
+cp local file to the fs
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs store ~/let_it_be.tar.bz2  let.bz2
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs lsdir
+. .. d1 d2 d3 f1 f2 f3 let.bz2
+
+
+cp back to local filesystem
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs restore let.bz2 let_it_be.tar.bz2
+
+
+verify data
+ideer@ideer:/home/chenz/source/ideerfs$ md5 let_it_be.tar.bz2 
+fa14b9985a2c50cba0fb838d3b66b6ea	let_it_be.tar.bz2
+ideer@ideer:/home/chenz/source/ideerfs$ md5 ~/let_it_be.tar.bz2 
+fa14b9985a2c50cba0fb838d3b66b6ea	/home/ideer/let_it_be.tar.bz2
+
+
+commands avaiable in the shell
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs help
+

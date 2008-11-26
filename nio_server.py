@@ -24,6 +24,7 @@ class NIOServer(Server):
 
     def register(self, name, waiter):
         self.services[name] = waiter
+        debug('%s service registered' % name)
 
     def request_handler(self, conn):
         f, addr = conn
@@ -72,8 +73,8 @@ class NIOServer(Server):
 if __name__ == '__main__':
     server = NIOServer()
     server.register('meta', MetaService('/data/sda'))
-    server.register('chunk', ChunkService())
-    server.register('storage', StorageService())
+    server.register('chunk', ChunkService('localhost', 1984))
+    server.register('storage', StorageService('localhost', 1984))
     # Meta service and Storage Service are on the same node
     #server.services['meta'].storage_pool = server.services['storage']
     

@@ -15,10 +15,9 @@ from util import *
 
 class FileSystem:
     
-    def __init__(self):
-        self.nio_meta = NetWorkIO('localhost', 1984)
-        #self.nio_storage = NetWorkIO('localhost', 1984)
-        self.nio_storage = self.nio_meta
+    def __init__(self, meta, storage):
+        self.nio_meta = NetWorkIO(meta.ip, meta.port)
+        self.nio_storage = NetWorkIO(storage.ip, storage.port)
 
     def create(self, file, **attr):
         """Create new files with attrs: replication factor, bs, permission

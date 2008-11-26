@@ -15,10 +15,13 @@ class StorageService(Service):
     
     """
     
-    def __init__(self):
+    def __init__(self, ip, port):
         self.cache_file = 'storage_pool.cache'
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
         self.cache = self.cm.load(self.cache_file, OODict())
+        
+        self.meta_service_ip = ip
+        self.meta_service_port = port
         
         # Compute status
         self.statistics = OODict()

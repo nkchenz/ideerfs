@@ -28,7 +28,6 @@ class MetaService(Service):
             sys.exit(-1)
             
         self.deleted_chunks_file = 'deleted_chunks'
-            
 
     def _next_seq(self):
         # We should get a multi thread lock here to protect 'SEQ' file

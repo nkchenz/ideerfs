@@ -14,7 +14,8 @@ from util import *
 from nio import *
 from dev import *
 
-
+from nio_server import *
+        
 from obj import Object
 
 
@@ -29,9 +30,6 @@ class StorageAdmin:
     """
     
     def __init__(self):
-        self.storage_manager = 'localhost'
-        self.nio_storage = NetWorkIO(self.storage_manager, 1984)
-        
         # Usage format, symbols beginning with '$' are vars which you can use directly
         # in the 'args' parameter
         self.usage_rules = {
@@ -43,6 +41,25 @@ class StorageAdmin:
             'replace $old_path with $new_path': 'replace',
             'stat': 'stat',
         }
+
+    def _pre_command(self, cmd, args):
+        # Hook for pre cmd running
+        if cmd not in ['format']: # No need to connect storage service while formatting
+            self._connect_storage_service()
+
+    def _connect_storage_service(self):
+        self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
+        self.services = self.cm.load('services', OODict())
+        
+        # Make sure storage service location is known already, run something like this first
+        #    ideer.py service storage at localhost:1984
+        if 'storage' not in self.services:
+            print 'where is storage service?'
+            sys.exit(-1)
+        
+        storage = self.services.storage
+        self.nio_storage = NetWorkIO(storage.ip, storage.port)
+        
 
     def format(self, args):
         # Format new device
@@ -138,8 +155,10 @@ class StorageAdmin:
 
 class FSShell:
     def __init__(self):
-        self.fs = FileSystem()
-        #self.storage_manager = 'localhost'
+        # Is there a easy way to export envs still exists after this program exit
+        # os.environ did not work
+        self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
+        
         self.usage_rules = {
             'lsdir': 'lsdir', 
             'lsdir $dir': 'lsdir',
@@ -161,10 +180,15 @@ class FSShell:
             'pwd': 'pwd'
             }
         
-        # Is there a easy way to export envs still exists after this program exit
-        # os.environ did not work
-        self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
- 
+        self.services = self.cm.load('services', OODict())
+        if 'meta' not in self.services:
+            print 'where is meta service?'
+            sys.exit(-1)
+        if 'storage' not in self.services:
+            print 'where is storage service?'
+            sys.exit(-1)   
+        self.fs = FileSystem(self.services.meta, self.services.storage)            
+            
     def _getpwd(self):
         return self.cm.load('pwd', '')
     
@@ -283,10 +307,100 @@ class JobController:
         pass
 
 
+class ServiceController:
+    """
+    ideer service use /data/sda as meta device
+    ideer service start meta at localhost:1984 
+    
+    # Storage service needs to know where is meta service
+    ideer service meta at localhost:1984
+    ideer service start storage at localhost:1984
+    
+    # Chunk service needs to know where is storage service
+    ideer service storage at localhost:1984
+    ideer service start chunk at localhost:1984
+    
+    # Start all services on only one node
+    ideer service use /data/sda as meta device
+    ideer service start meta, storage, chunk at localhost:1984
+    """
+    def __init__(self):
+        self.usage_rules = {
+        #'start $services at $ip : $port with $dev as meta device': 'start_meta',
+        'use $dev as meta device': 'use',
+        '$service at $ip : $port': 'at',
+        'start $services at $ip : $port': 'start',
+        }
+        
+        self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
+        self.services = self.cm.load('services', OODict())
+    
+    def use(self, args):
+        self.cm.save(args.dev, 'meta_dev')
+
+    def at(self, args):
+        s = args.service
+        if s not in ['meta', 'storage']:
+            print 'unknown service', s
+            return -1
+        
+        if not args.port.isdigit():
+            print 'int port number required '
+            return -1
+        args.port = int(args.port)
+        
+        del args['service']
+        self.services[s] = args
+        self.cm.save(self.services, 'services')
+        
+    def start(self, args):
+        server = NIOServer()
+        # Remove dup and spaces
+        ss = list(set([s.strip() for s in args.services.split(',')]))
+        unknown = filter(lambda s: s not in ['meta', 'storage', 'chunk'], ss)
+        if unknown:
+            print 'unknown services', unknown
+            return -1
+        
+        if not args.port.isdigit():
+            print 'int port number required '
+            return -1
+        args.port = int(args.port)
+        
+        # Start meta service
+        if 'meta' in ss:
+            path = self.cm.load('meta_dev')
+            if not path:
+                print 'please set meta device first'
+                return -1
+            server.register('meta', MetaService(path))
+            self.services.meta = args
+
+        if 'storage' in ss:
+            if 'meta' not in self.services:
+                print 'where is meta service?'
+                return -1 
+            meta = self.services.meta
+            server.register('storage', StorageService(meta.ip, meta.port))
+            self.services.storage = args
+        
+        if 'chunk' in ss:
+            if 'storage' not in self.services:
+                print 'where is storage service?'
+                return -1  
+            storage = self.services.storage
+            server.register('chunk', ChunkService(storage.ip, storage.port))
+        
+        server.bind(args.ip, int(args.port))
+        debug('start server ok')
+        server.mainloop()
+
+
 command_sets = {
-'storage': StorageAdmin(),
-'fs': FSShell(),
-'job': JobController()
+'storage': 'StorageAdmin',
+'fs': 'FSShell',
+'job': 'JobController',
+'service': 'ServiceController',
 }
 
 if len(sys.argv) <= 1 or sys.argv[1] == 'help':
@@ -299,7 +413,8 @@ if cmd_class not in command_sets:
     sys.exit(-1)
     
 # Set dispatcher and rules for nlp
-nlp = NLParser(command_sets[cmd_class])
+dispatcher = globals()[command_sets[cmd_class]]() # Only get the needed hanlder
+nlp = NLParser(dispatcher)
 input = ' '.join(sys.argv[2:])
 try:
     nlp.parse(input)
