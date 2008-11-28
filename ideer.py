@@ -21,44 +21,37 @@ from obj import Object
 
 class StorageAdmin:
     """
-    1. format sda and online it
-    2. replace sda with sdb
-    3. offline sda # disable, data not available
-    4. online sda  # enable
-    5. frozen sda # readonly
-    6. remove sda  # replicate data first, then offline
+    Request local chunk server, which is just a proxy agent of the global storage
+    manager,  to do the storage management for local node. 
     """
     
     def __init__(self):
         # Usage format, symbols beginning with '$' are vars which you can use directly
         # in the 'args' parameter
         self.usage_rules = {
-            'format $path size $size host $host for $data_type data': 'format',
+            'format $path size $size for $data_type data': 'format',
             'online $path': 'online',
             'offline $path': 'offline',
             'frozen $path': 'frozen',
             'remove $path': 'remove',
             'replace $old_path with $new_path': 'replace',
-            'stat': 'stat',
+            'stat $path': 'stat',
         }
 
     def _pre_command(self, cmd, args):
         # Hook for pre cmd running
         if cmd not in ['format']: # No need to connect storage service while formatting
-            self._connect_storage_service()
+            self._connect_chunk_service()
 
-    def _connect_storage_service(self):
+    def _connect_chunk_service(self):
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
         self.services = self.cm.load('services', OODict())
         
-        # Make sure storage service location is known already, run something like this first
-        #    ideer.py service storage at localhost:1984
-        if 'storage' not in self.services:
-            print 'where is storage service?'
+        if 'chunk' not in self.services:
+            print 'where is local chunk service?'
             sys.exit(-1)
-        
-        storage = self.services.storage
-        self.nio_storage = NetWorkIO(storage.ip, storage.port)
+
+        self.nio = NetWorkIO(self.services.chunk)
         
 
     def format(self, args):
@@ -84,7 +77,7 @@ class StorageAdmin:
             sys.exit(-1)
             
         dev.init(args)
-        dev.change_status('offline')
+        dev.flush()
         
         # Create necessary files for meta device
         if args.data_type == 'meta':
@@ -97,61 +90,40 @@ class StorageAdmin:
             os.mkdir(os.path.join(args.path, 'OBJECTS'))
         print 'format ok'
 
-    
     def online(self, args):
-        dev = Dev(args.path)
-        
-        if dev.config.data_type != 'chunk':
-            print 'wrong data_type'
-            sys.exit(-1)
-
-        dev.assert_status(['offline'])
-        self.nio_storage.call('storage.online', dev = dev.config)
-        # If there are errors, exception will be raised in 'call', so we're safe here
-        dev.change_status('online')
-        print 'online ok'
+        self.nio.call('chunk.admin_dev', action = 'online', path = args.path)
     
     def offline(self, args):
-        dev = Dev(args.path)
-        dev.assert_status(['online', 'frozen'])
-        self.nio_storage.call('storage.offline', dev_id = dev.config.id)
-        dev.change_status('offline')
-        print 'offline ok'
+        self.nio.call('chunk.admin_dev', action = 'offline', path = args.path)
         
     def frozen(self, args):
-        dev = Dev(args.path)
-        dev.assert_status(['online'])
-        self.nio_storage.call('storage.frozen', dev_id = dev.config.id)
-        dev.change_status('frozen')
-        print 'frozen ok'
-
+        self.nio.call('chunk.admin_dev', action = 'frozen', path = args.path)
     
     def remove(self, args):
         pass
 
     def replace(self, args):
-        print 'Frizing ', args.old_dev
-        print 'Transfering data to', args.new_dev
-        print 'OK'
+        self.nio.call('chunk.admin_dev', action = 'replace', \
+            old_path = args.old_path, new_path = args.new_path)
+        
         # First transfer data to other devs automatically, then remove
         
     def stat(self, args):
         """
+        Show storage status
+        
+        stat all       status of the global pool
+        stat local     status of local devs
+        stat /data/sda status of a local dev
+        
         # total_disks, invalid_disks
         """
-        data = self.nio_storage.call('storage.stat')
-        for dev in data.disks.values():
+        cache = self.nio.call('chunk.admin_dev', action = 'stat', path = args.path)
+        for id, dev in cache.items():
             dev = OODict(dev)
-            print '%s@%s %s/%s %d%%' %(dev.path, dev.host, \
-                byte2size(dev.used), byte2size(dev.size), dev.used * 100 / dev.size)
-            #print '%-20s%-20s%8s/%-8s%-42s' %(dev.host, dev.path, \
-            #    byte2size(dev.used), byte2size(dev.size), dev.id)
-            #print '%s: %s' % (k, pprint.pformat(v))
-            
-        #print 'Total_disks, invalid_disks'
-        #print 'Pool Capacity:'
-        #print 'Used:'
-    
+            print '%s %s/%s %d%% %s %s' %(dev.path, byte2size(dev.used), byte2size(dev.size), \
+                dev.used * 100 / dev.size, dev.status, dev.mode)
+
 
 class FSShell:
     def __init__(self):
@@ -328,8 +300,8 @@ class ServiceController:
         self.usage_rules = {
         #'start $services at $ip : $port with $dev as meta device': 'start_meta',
         'use $dev as meta device': 'use',
-        '$service at $ip : $port': 'at',
-        'start $services at $ip : $port': 'start',
+        '$service at $host : $port': 'at',
+        'start $services at $host : $port': 'start',
         }
         
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
@@ -340,7 +312,7 @@ class ServiceController:
 
     def at(self, args):
         s = args.service
-        if s not in ['meta', 'storage']:
+        if s not in ['meta', 'storage', 'chunk']:
             print 'unknown service', s
             return -1
         
@@ -350,7 +322,7 @@ class ServiceController:
         args.port = int(args.port)
         
         del args['service']
-        self.services[s] = args
+        self.services[s] = (args.host, args.port)
         self.cm.save(self.services, 'services')
         
     def start(self, args):
@@ -365,7 +337,7 @@ class ServiceController:
         if not args.port.isdigit():
             print 'int port number required '
             return -1
-        args.port = int(args.port)
+        addr = (args.host, int(args.port))
         
         # Start meta service
         if 'meta' in ss:
@@ -374,24 +346,22 @@ class ServiceController:
                 print 'please set meta device first'
                 return -1
             server.register('meta', MetaService(path))
-            self.services.meta = args
+            self.services.meta = addr
 
         if 'storage' in ss:
             if 'meta' not in self.services:
                 print 'where is meta service?'
                 return -1 
-            meta = self.services.meta
-            server.register('storage', StorageService(meta.ip, meta.port))
-            self.services.storage = args
+            server.register('storage', StorageService(self.services.meta))
+            self.services.storage = addr
         
         if 'chunk' in ss:
             if 'storage' not in self.services:
                 print 'where is storage service?'
                 return -1  
-            storage = self.services.storage
-            server.register('chunk', ChunkService(storage.ip, storage.port))
+            server.register('chunk', ChunkService(self.services.storage))
         
-        server.bind(args.ip, int(args.port))
+        server.bind(addr)
         debug('start server ok')
         server.mainloop()
 

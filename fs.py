@@ -16,8 +16,8 @@ from util import *
 class FileSystem:
     
     def __init__(self, meta, storage):
-        self.nio_meta = NetWorkIO(meta.ip, meta.port)
-        self.nio_storage = NetWorkIO(storage.ip, storage.port)
+        self.nio_meta = NetWorkIO(meta)
+        self.nio_storage = NetWorkIO(storage)
 
     def create(self, file, **attr):
         """Create new files with attrs: replication factor, bs, permission
@@ -148,8 +148,9 @@ class File:
         for id, dev in info.locations.items():
             try:
                 dev = OODict(dev)
-                nio_chunk = NetWorkIO(dev.host, 1984)
-                status, payload = nio_chunk.call('chunk.read', dev_path = dev.path, \
+                dev.addr = (dev.host, 1984)
+                nio_chunk = NetWorkIO(dev.addr)
+                status, payload = nio_chunk.call('chunk.read', dev_id = dev.id, \
                     object_id = meta.id, chunk_id = chunk_id, version = info.version, \
                     offset = offset, len = len)
                 nio_chunk.close()
@@ -212,10 +213,11 @@ class File:
         for id, dev in info.locations.items():
             try:
                 dev = OODict(dev)
-                nio_chunk = NetWorkIO(dev.host, 1984)
-                nio_chunk.call('chunk.write', dev_path = dev.path, object_id = meta.id, \
+                dev.addr = (dev.host, 1984)
+                nio_chunk = NetWorkIO(dev.addr)
+                nio_chunk.call('chunk.write', dev_id = dev.id, object_id = meta.id, \
                     chunk_id = chunk_id, version = info.version, offset = offset, \
-                    payload = payload, is_new = is_new, chunk_size = meta.chunk_size)
+                    payload = payload, is_new_chunk = is_new, chunk_size = meta.chunk_size)
                 nio_chunk.close()
                 dev_ids.append(id)
             except IOError, err:
@@ -256,7 +258,7 @@ class File:
             if done_len + window_len >= total:
                 window_len = total - done_len
             chunk_data = data[done_len: done_len + window_len]
-            # Becareful, meta.size is changed is this function
+            # Becareful, meta.size is changed in this function
             self._write_chunk(meta, chunk_id, offset_in_chunk, chunk_data)
             done_len += window_len
             if done_len >= total:

@@ -63,7 +63,7 @@ class NIOServer(Server):
 
                 if error:
                     r.error = error
-                r._id = req._id
+                r._id = req._id # Repsonse has the same id as request
                 debug('Response:', filter_req(r))
                 send_message(f, r) 
 
@@ -78,5 +78,5 @@ if __name__ == '__main__':
     # Meta service and Storage Service are on the same node
     #server.services['meta'].storage_pool = server.services['storage']
     
-    server.bind('localhost', 1984)
+    server.bind(('localhost', 1984))
     server.mainloop()

@@ -20,7 +20,7 @@ class NetWorkIO:
     TCP's.
     """
 
-    def __init__(self, ip, port):
+    def __init__(self, addr):
         # 发送出去之后，启动重试超时
         # 默认重试，超时时间。如果Call给定的值为0，则使用此值
         #self.timeout_on_no_ack = 30 # 如果过此时间仍没有收到ack，则重新发送请求  
@@ -31,8 +31,7 @@ class NetWorkIO:
         self.retrys_on_socket_send_error = 0
 
         self.socket = None
-        self.remote_ip = ip
-        self.remote_port = port
+        self.remote_addr = addr
 
         self.req_id = 0
 
@@ -44,7 +43,7 @@ class NetWorkIO:
         while True:
             try:
                 start = time.time()
-                self.socket.connect((self.remote_ip, self.remote_port))
+                self.socket.connect(self.remote_addr)
                 return 
             except socket.error, err:
                 print 'socket.error', err, '%ds used' % (time.time() - start)

@@ -1,24 +1,25 @@
 Simple howto
+=============
 
 There are three kind of services:
 meta for namespace service, only has one meta device
 storage for storage management
 chunk for data services, may have many chunk devices
 
-Usually, each node in the cluster provides one service, but they can be at the
-same node as you will see in the following little example.
+Usually, each node in the cluster provides only one service, but different services
+can be on the same node as you will see in the following little example.
 
 
 1.format devices
 
 Make a meta device /data/sda
-ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sda size 10g host localhost for meta data
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sda size 10g for meta data
 format ok
 
 And two chunk devices /data/sdb, /data/sdc
-ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdb size 10g host localhost for chunk data
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdb size 10g for chunk data
 format ok
-ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdc size 10g host localhost for chunk data
+ideer@ideer:/chenz/source/ideerfs$ ./ideer.py storage format /data/sdc size 10g for chunk data
 format ok
 
 
@@ -103,3 +104,7 @@ fa14b9985a2c50cba0fb838d3b66b6ea	/home/ideer/let_it_be.tar.bz2
 commands avaiable in the shell
 ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs help
 
+
+
+Service startup
+===============

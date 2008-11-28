@@ -2,6 +2,10 @@
 # coding: utf8
 
 """
+http://en.wikipedia.org/wiki/MapReduce
+        
+map (k1, v1) to (k2, v2), then reduce v2 by k2
+
  hadoop@ubuntu:/usr/local/hadoop$ bin/hadoop jar contrib/streaming/hadoop-0.18.0
  -streaming.jar -mapper /home/hadoop/mapper.py -reducer /home/hadoop/reducer.py 
  -input gutenberg/* -output gutenberg-output

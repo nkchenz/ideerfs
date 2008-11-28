@@ -22,12 +22,12 @@ class Server:
         self.shutdown = False
         self.__set_signals()
 
-    def bind(self, ip, port):
+    def bind(self, addr):
         """Bind socket"""
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # For socket.error: (98, 'Address already in use')
-        #self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
-        self.socket.bind((ip, port))
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
+        self.socket.bind(addr)
         return True
 
     def mainloop(self):
@@ -38,8 +38,8 @@ class Server:
                 break
             try:
                 conn = self.socket.accept()
-                #self.request_handler(conn) # For debug only
-                thread.start_new_thread(self.request_handler, (conn,))
+                self.request_handler(conn) # For debug only
+                #thread.start_new_thread(self.request_handler, (conn,))
             except socket.error, err:
                 if err[0] == 4:
                     print 'CTRL+C'
@@ -82,7 +82,7 @@ class Server:
 
 if __name__ == '__main__':
     server = Server()
-    server.bind('localhost', 1984)
+    server.bind(('localhost', 1984))
     # Use the default request_handler
     server.mainloop()
 

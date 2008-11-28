@@ -108,12 +108,21 @@ class Chunk:
 
 class ChunkService(Service):
     """
+    Chunk server needs to know all the using devices at startup. One way is through
+    configuration file, which contains all the devices exported, but what happens
+    when we want to add some devices, do we need to reboot the chunk server? If not,
+    there should be some methods to inform the server.
+    
+    Instead of this, we implement local storage management as part of the server,
+    command 'ideer.py storage' communicates with local chunk server through sockets
+    interface chunk.admin_dev.
     """
-    def __init__(self, ip, port):
+    def __init__(self, addr):
         self.CHUNK_HEADER_SIZE = 1024
-        self.storage_service_ip = ip
-        self.storage_service_port = port
-        pass
+        self.storage_service_addr = addr
+        
+        self.devices = DeviceManager()
+
         
     def _send_chunk_report(self):
         # Where chunk server starts up, it should send informations about the chunks
@@ -135,14 +144,6 @@ class ChunkService(Service):
     def _get_chunk_filepath(self, dev_path, object_id, chunk_id, version):
         return os.path.join(dev_path, 'OBJECTS', \
             self._get_chunk_filename(object_id, chunk_id, version))
-      
-    def _check_dev_status(self, path, status):
-        dev = Dev(path)
-        try:
-            dev.check_status(status)
-        except IOError, err:
-            self._error(err.message)
-        return dev
         
     def write(self, req):        
         # Checksum is based on the whole chunk, that means, every time we have to
@@ -152,33 +153,41 @@ class ChunkService(Service):
         # verify 
         # modify hashlist
         # write data back, save header
+        if req.dev_id not in self.devices.cache:
+            self._error('dev not exists')
         
-        dev = self._check_dev_status(req.dev_path, ['online'])
+        dev = self.devices.cache[req.dev_id]
+        if dev.status != 'online':
+            self._error('dev not online')
+        if dev.mode == 'frozen':
+            self._error('dev frozen')  
+
         chunk = Chunk()
-        file = self._get_chunk_filepath(req.dev_path, req.object_id, req.chunk_id, req.version)
+        file = self._get_chunk_filepath(dev.path, req.object_id, req.chunk_id, req.version)
         try:
             # There should be a safe limit of free space. Even if it's a old existing
             # chunk, we may write to hole in it, so still need extra space check
-            if dev.config.size - dev.config.used < len(req.payload) * 3:
-                self._error('no space for chunk')
+            if dev.size - dev.used < len(req.payload) * 3:
+                self._error('no enough space')
             
-            if req.is_new:
+            if req.is_new_chunk:
                 # Create chunk file on disk, there is possibility that chunk file 
                 # is left invalid on disk if it has not been written to disk successfully
                 chunk.touch(file, req.chunk_size) 
                 chunk.update_checksum(req.offset, req.payload)
                 chunk.write(file, req.offset, req.payload)
                 # Update dev stat finally
-                dev.config.used += chunk.real_size
+                dev.used += chunk.real_size
             else:
-                old_file = self._get_chunk_filepath(req.dev_path, req.object_id, req.chunk_id, req.version - 1)
+                old_file = self._get_chunk_filepath(dev.path, req.object_id, req.chunk_id, req.version - 1)
                 chunk.read(old_file)
                 chunk.update_checksum(req.offset, req.payload)
                 chunk.write(old_file, req.offset, req.payload)
                 os.rename(old_file, file) # Rename it to new version
-                dev.config.used += chunk.real_size - chunk.old_real_size 
-
-            dev.config_manager.save(dev.config, dev.config_file)
+                dev.used += chunk.real_size - chunk.old_real_size 
+            
+            # Save status back to disk
+            self.devices._flush()
         except IOError, err:
             self._error(err.message)
         # pipe write
@@ -186,9 +195,14 @@ class ChunkService(Service):
 
 
     def read(self, req):
-        self._check_dev_status(req.dev_path, ['online', 'frozen'])
+        if req.dev_id not in self.devices.cache:
+            self._error('dev not exists')
+        
+        dev = self.devices.cache[req.dev_id]
+        if dev.status != 'online':
+            self._error('dev not online')
             
-        file = self._get_chunk_filepath(req.dev_path, req.object_id, req.chunk_id, req.version)
+        file = self._get_chunk_filepath(dev.path, req.object_id, req.chunk_id, req.version)
         chunk = Chunk()
         try:
             chunk.read(file)
@@ -200,20 +214,120 @@ class ChunkService(Service):
         return 'ok', chunk.data[req.offset: req.offset + req.len] # This is a payload
 
 
+
+    def admin_dev(self, req):
+        #req.action
+        #req.dev
+        
+        try:
+            handler = getattr(self.devices, req.action)
+        except AttributeError:
+            self._error('unknown action')
+                
+        if not callable(handler):
+            self._error('unkown action')
+
+        try:
+            return handler(req)
+        except IOError, err:
+            self._error(err.message)
+
+
+
+class DeviceManager(Service):
+    """
+    status:
+        offline
+        online
+        replacing
+        invalid    
+        
+    mode
+        frozen
+    """
+    
+    def __init__(self):
+        self.cache_file = 'exported_devices'
+        self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
+        self.cache = self.cm.load(self.cache_file, OODict())
+        
+        # If you use a[k] access a dict item, it's converted to OODict automatically
+        # For later convenience
+        for k, v in self.cache.items():
+            self.cache[k] = OODict(v)
+    
+    def _flush(self):
+        self.cm.save(self.cache, self.cache_file)
+        
+    def _get_dev(self, path):
+        """Return a dev object, but check status first"""
+        dev = Dev(path)
+        if not dev.config:
+            self._error('not formatted')
+        
+        if dev.config.data_type != 'chunk':
+            self._error('wrong data type')
+        
+        return dev
+
+    def online(self, req):
+        """Update dev status in devices cache to 'online', notice that we do not 
+        update the config file on disk"""
+        dev = self._get_dev(req.path) # Get dev from path
+        id = dev.config.id
+        if id not in self.cache:
+            self.cache[id] = dev.config # Add entry
+        else:
+            if self.cache[id].status != 'offline':
+                self._error('not offline')
+                
+        self.cache[id].status = 'online'
+        self._flush()
+        # Notify stroage manager dev online
+        return 'ok'
+        
+    def offline(self, req):
+        """Update dev status in devices cache to 'offline'
+        """
+        dev = self._get_dev(req.path) # Get dev from path
+        id = dev.config.id
+        if id not in self.cache:
+            self._error('not in cache')
+        
+        if self.cache[id].status != 'online':
+            self._error('not online')
+                
+        self.cache[id].status = 'offline'
+        self._flush()
+        # Notify stroage manager dev offline
+        return 'ok'
+        
+    def remove(self, req):
+        dev = self._get_dev(req.path) # Get dev from path
+        id = dev.config.id
+        if id not in self.cache:
+            self._error('not in cache')
+        del self.cache[id]
+        self._flush()
+        return 'ok'
+        
+    def frozen(self, req):
+        dev = self._get_dev(req.path)
+        id = dev.config.id
+        if id not in self.cache:
+            self._error('not in cache')
+
+        self.cache[id].mode = 'frozen'
+        self._flush()
+        return 'ok'
+        
+    def stat(self, req):
+        return self.cache
+        # Iterate dev cache to get realtime stat here, disk stat is carried with
+        # chunk server's heart-beat message
+        #return  {'summary': self.statistics, 'disks': self.cache}
+        
+
+
 if __name__ == '__main__':
-    
-    req = OODict()
-    req.dev_path = '/data/sdb'
-    req.object_id = 2
-    req.chunk_id = 4
-    req.version = 2
-    req.offset = 0
-    req.payload = '0123456789'
-    req.chunk_size = 1024 * 1024 * 64
-    req.is_new = True
-    
-    cs = ChunkService('localhost', 1984)
-    print cs.write(req)
-    
-    req.len=10
-    print cs.read(req)
+    pass

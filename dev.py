@@ -18,27 +18,13 @@ class Dev:
     def init(self, args):
         # path, host, size are all in args
         args.used = 0
-        args.status = 'offline'
+        args.status = ''
+        args.mode = ''
         #args.data_type = 'chunk' #chunk, meta
         args.type = 'file'  #raid, mirror, file, log, disk
         str = '%s %s %s' % (time.time(), args.host, args.path)
         args.id = hashlib.sha1(str).hexdigest()
         self.config = OODict(args)
-    
-    def assert_status(self, status):
-        try:
-            self.check_status(status)
-        except IOError, err:
-            print err.message
-            sys.exit(-1)
-    
-    def check_status(self, status):
-        if not self.config:
-            raise IOError('not formatted')
-        
-        if self.config.status not in status:
-            raise IOError('status not in ' + str(status))
-            
-    def change_status(self, status):
-        self.config.status = status
+
+    def flush(self):
         self.config_manager.save(self.config, self.config_file)
