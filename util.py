@@ -12,10 +12,13 @@ class Service:
     def _error(self, message):
         raise RequestHandleError(message)
     
+    def _hash2path(self, hash):
+        return os.path.join(hash[:3], hash[3:6], hash[6:])
+    
     def _id2path(self, id):
         """Map object id number to storage path, this can be changed to other methods"""
         hash = hashlib.sha1(str(id)).hexdigest()
-        return os.path.join(hash[:3], hash[3:6], hash[6:])
+        return self._hash2path(hash)
 
 class ConfigManager:
     def __init__(self, root):
@@ -122,10 +125,28 @@ def filter_req(req):
     return tmp
 
 
+def object_hash(id):
+    return hashlib.sha1(str(id)).hexdigest()
+
 def object_path(id):
     """Map object id number to storage path, this can be changed to other methods"""
-    hash = hashlib.sha1(str(id)).hexdigest()
+    hash = object_hash(id)
     return os.path.join(hash[:3], hash[3:6], hash[6:])
 
 def chunk_path(id, chunk_id, version):
     return '.'.join([object_path(id), str(chunk_id), str(version)])
+
+def chunk_id(file, chunk_id):
+    return '.'.join([file, str(chunk_id)])
+
+def get_file_real_size(file):
+    s = os.stat(file)
+    if hasattr(s, 'st_blocks'):
+        # st_blksize is wrong on my linux box, should be 512. Some smaller file
+        # about 10k use 256 blksize, I don't know why.
+        #Linux ideer 2.6.24-21-generic #1 SMP Mon Aug 25 17:32:09 UTC 2008 i686 GNU/Linux
+        #Python 2.5.2 (r252:60911, Jul 31 2008, 17:28:52) 
+        return s.st_blocks * 512 #s.st_blksize
+    else:
+        # If st_blocks is not supported
+        return s.st_size

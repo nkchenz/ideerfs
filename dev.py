@@ -4,6 +4,7 @@
 import sys
 from oodict import OODict
 from util import *
+import socket
 
 import time
 import hashlib
@@ -22,9 +23,11 @@ class Dev:
         args.mode = ''
         #args.data_type = 'chunk' #chunk, meta
         args.type = 'file'  #raid, mirror, file, log, disk
-        str = '%s %s %s' % (time.time(), args.host, args.path)
+        str = '%s %s %s' % (time.time(), socket.gethostname(), args.path)
         args.id = hashlib.sha1(str).hexdigest()
         self.config = OODict(args)
 
     def flush(self):
         self.config_manager.save(self.config, self.config_file)
+
+        

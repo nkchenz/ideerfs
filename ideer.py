@@ -100,7 +100,7 @@ class StorageAdmin:
         self.nio.call('chunk.admin_dev', action = 'frozen', path = args.path)
     
     def remove(self, args):
-        pass
+        self.nio.call('chunk.admin_dev', action = 'remove', path = args.path)
 
     def replace(self, args):
         self.nio.call('chunk.admin_dev', action = 'replace', \
@@ -108,6 +108,17 @@ class StorageAdmin:
         
         # First transfer data to other devs automatically, then remove
         
+        
+    def _show_disks(self, cache):
+        for id, dev in cache.items():
+            dev = OODict(dev)
+            if 'host' in dev:
+                host = dev.host
+            else:
+                host = ''
+            print '%s %s/%s %d%% %s %s %s' %(dev.path, byte2size(dev.used), byte2size(dev.size), \
+                dev.used * 100 / dev.size, dev.status, dev.mode, host)
+                
     def stat(self, args):
         """
         Show storage status
@@ -118,11 +129,13 @@ class StorageAdmin:
         
         # total_disks, invalid_disks
         """
-        cache = self.nio.call('chunk.admin_dev', action = 'stat', path = args.path)
-        for id, dev in cache.items():
-            dev = OODict(dev)
-            print '%s %s/%s %d%% %s %s' %(dev.path, byte2size(dev.used), byte2size(dev.size), \
-                dev.used * 100 / dev.size, dev.status, dev.mode)
+        rv = self.nio.call('chunk.admin_dev', action = 'stat', path = args.path)
+        if args.path == 'all':
+            print rv.chunks
+            print rv.maps
+            self._show_disks(rv.disks)
+        else:
+            self._show_disks(rv)
 
 
 class FSShell:
@@ -186,13 +199,12 @@ class FSShell:
     def get_chunk_info(self, args):
         file = self._normpath(args.file)
         meta = self.fs.get_file_meta(file)
-        info = self.fs.get_chunk_info(file, int(args.chunk_id))
+        info = self.fs.get_chunk_info(file, [args.chunk_id])
         if not info:
             print 'no such chunk'
             return
         print chunk_path(meta.id, args.chunk_id, info.version)
-        for k, v in info.locations.items():
-            print '%s@%s' % (v['path'], v['host']) 
+        print info
         
     def store(self, args):
         """Store local file to the fs"""
@@ -237,7 +249,7 @@ class FSShell:
             args.dir = ''
         dir = self._normpath(args.dir)
         if not dir:
-            return
+            dir = '/'
         files = self.fs.lsdir(dir)
         if files:
             print ' '.join(sorted(files))
@@ -345,21 +357,21 @@ class ServiceController:
             if not path:
                 print 'please set meta device first'
                 return -1
-            server.register('meta', MetaService(path))
+            server.register('meta', MetaService(addr, path))
             self.services.meta = addr
 
         if 'storage' in ss:
             if 'meta' not in self.services:
                 print 'where is meta service?'
                 return -1 
-            server.register('storage', StorageService(self.services.meta))
+            server.register('storage', StorageService(addr, self.services.meta))
             self.services.storage = addr
         
         if 'chunk' in ss:
             if 'storage' not in self.services:
                 print 'where is storage service?'
                 return -1  
-            server.register('chunk', ChunkService(self.services.storage))
+            server.register('chunk', ChunkService(addr, self.services.storage))
         
         server.bind(addr)
         debug('start server ok')

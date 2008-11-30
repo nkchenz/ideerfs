@@ -13,7 +13,8 @@ class MetaService(Service):
     one metadev in the whole system.
     """
 
-    def __init__(self, path):
+    def __init__(self, addr, path):
+        self._addr = addr # Address for this service
         self.dev = Dev(path)
         if not self.dev.config:
             print 'not formatted', path
@@ -172,25 +173,21 @@ class MetaService(Service):
         
         return id
 
-    def get_chunk_info(self, req):
+    def get_chunks(self, req):
         """
-        Get infomations of a chunk, about which devices it's stored on.
-        
-        If chunk does not exist, it's hole in file or out of range, return None, 
-        and leave it to upper layer handle this.
-        
-        Maybe this shall in storage layer. Meta layer shall only provide which file
-        contains which chunks. Once locations are concerned, please go and ask 
-        storage layer.
+        Find chunks in whose id is in the list req.chunks
         """
         f = self._lookup(req.file)
         if f is None or self._isdir(f):
             self._error('no such file or is a directory' % req.file)
         
-        if req.chunk_id not in f.chunks:
-            return None
-        return f.chunks[req.chunk_id]
-    
+        data = OODict()
+        data.id = f.id
+        data.chunks = {}
+        for chunk in req.chunks:
+            if chunk in f.chunks:
+                data.chunks[chunk] = f.chunks[chunk]
+        return data
     
     def _delete_recursive(self, obj):
         for name, id in obj.children.items():

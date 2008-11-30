@@ -5,6 +5,8 @@ import os
 import socket
 import sys
 import thread
+import threading
+
 import signal
 
 MAX_WAITING_CLIENTS = 128
@@ -38,8 +40,10 @@ class Server:
                 break
             try:
                 conn = self.socket.accept()
-                self.request_handler(conn) # For debug only
+                #self.request_handler(conn) # For debug only
                 #thread.start_new_thread(self.request_handler, (conn,))
+                p = threading.Thread(target = self.request_handler, args = (conn,))
+                p.start()
             except socket.error, err:
                 if err[0] == 4:
                     print 'CTRL+C'

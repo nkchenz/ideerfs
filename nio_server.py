@@ -46,9 +46,11 @@ class NIOServer(Server):
                 else:
                     try:
                         handler = getattr(self.services[service], method)
+                        if not callable(handler):
+                            error = 'not callable method %s' % method
                     except AttributeError:
                         error = 'unknown method %s' % method
-                        
+
                 if not error:
                     try:
                         returns = handler(req)

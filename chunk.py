@@ -5,8 +5,12 @@ from oodict import OODict
 import hashlib
 from util import *
 from dev import *
+from nio import *
 
 CHUNK_HEADER_SIZE = 1024
+
+import time
+import thread
 
 class ChunkHeader(OODict):
     """size, algo, checksum"""
@@ -67,21 +71,11 @@ class Chunk:
         f.close()
     
         
-    def _get_file_real_size(self, file):
-        s = os.stat(file)
-        if hasattr(s, 'st_blocks'):
-            # st_blksize is wrong on my linux box, should be 512. Some smaller file
-            # about 10k use 256 blksize, I don't know why.
-            #Linux ideer 2.6.24-21-generic #1 SMP Mon Aug 25 17:32:09 UTC 2008 i686 GNU/Linux
-            #Python 2.5.2 (r252:60911, Jul 31 2008, 17:28:52) 
-            return s.st_blocks * 512 #s.st_blksize
-        else:
-            # If st_blocks is not supported
-            return s.st_size
+
     
     def write(self, file, offset, data):
         """Write to existing file"""
-        self.old_real_size = self._get_file_real_size(file)
+        self.old_real_size = get_file_real_size(file)
         
         # May raise IOError
         f = open(file, 'r+') # Update file
@@ -92,7 +86,7 @@ class Chunk:
         f.write(data)
         f.close()
         
-        self.real_size = self._get_file_real_size(file)
+        self.real_size = get_file_real_size(file)
         debug('chunk size:', file, self.real_size, self.old_real_size)
         
     def update_checksum(self, offset, data):
@@ -117,20 +111,13 @@ class ChunkService(Service):
     command 'ideer.py storage' communicates with local chunk server through sockets
     interface chunk.admin_dev.
     """
-    def __init__(self, addr):
-        self.CHUNK_HEADER_SIZE = 1024
-        self.storage_service_addr = addr
+    def __init__(self, addr, storage_addr):
+        self._addr = addr
+        self._storage_service_addr = storage_addr
         
-        self.devices = DeviceManager()
+        self.devices = DeviceManager(storage_addr)
 
-        
-    def _send_chunk_report(self):
-        # Where chunk server starts up, it should send informations about the chunks
-        # it has to storage server
-        
-        # To make it simple, now we use the 'ideer.py storage online' command to 
-        # send this infos
-        pass
+        thread.start_new_thread(self._hb_for_storage_manager, ())
         
         
     def _get_chunk_filename(self, object_id, chunk_id, version):
@@ -164,13 +151,15 @@ class ChunkService(Service):
 
         chunk = Chunk()
         file = self._get_chunk_filepath(dev.path, req.object_id, req.chunk_id, req.version)
+        old_file = self._get_chunk_filepath(dev.path, req.object_id, req.chunk_id, req.version - 1)
+        
         try:
             # There should be a safe limit of free space. Even if it's a old existing
             # chunk, we may write to hole in it, so still need extra space check
             if dev.size - dev.used < len(req.payload) * 3:
                 self._error('no enough space')
-            
-            if req.is_new_chunk:
+                
+            if not os.path.exists(old_file):
                 # Create chunk file on disk, there is possibility that chunk file 
                 # is left invalid on disk if it has not been written to disk successfully
                 chunk.touch(file, req.chunk_size) 
@@ -179,7 +168,6 @@ class ChunkService(Service):
                 # Update dev stat finally
                 dev.used += chunk.real_size
             else:
-                old_file = self._get_chunk_filepath(dev.path, req.object_id, req.chunk_id, req.version - 1)
                 chunk.read(old_file)
                 chunk.update_checksum(req.offset, req.payload)
                 chunk.write(old_file, req.offset, req.payload)
@@ -187,7 +175,8 @@ class ChunkService(Service):
                 dev.used += chunk.real_size - chunk.old_real_size 
             
             # Save status back to disk
-            self.devices._flush()
+            self.devices._flush(dev.id)
+            
         except IOError, err:
             self._error(err.message)
         # pipe write
@@ -214,7 +203,6 @@ class ChunkService(Service):
         return 'ok', chunk.data[req.offset: req.offset + req.len] # This is a payload
 
 
-
     def admin_dev(self, req):
         #req.action
         #req.dev
@@ -233,6 +221,48 @@ class ChunkService(Service):
             self._error(err.message)
 
 
+    def _delete_chunk(self, id, chunk):
+        if id not in self.devices.cache:
+            return
+        dev = self.devices.cache[id]
+        chf = os.path.join(dev.path, 'OBJECTS', self._hash2path(chunk))
+        dev.used -= get_file_real_size(chf)
+        os.remove(chf)
+
+    def _hb_for_storage_manager(self):
+        nio = NetWorkIO(self._storage_service_addr)
+        
+        while True:
+        
+            #debug('sending heart beat message to storage manager')
+            # We need lock here
+            changed = self.devices.changed
+            need_send_report = self.devices.need_send_report
+            self.devices.need_send_report = set()
+            self.devices.changed = set()
+            
+            changed_devs = {}
+            for id in changed:
+                if id not in self.devices.cache:
+                    changed_devs[id] = {} # Removed
+                else:
+                    changed_devs[id] = self.devices.cache[id]
+            
+            chunks_report = {}
+            for id in need_send_report:
+                chunks_report[id] = self.devices.chunks[id]
+                del self.devices.chunks[id]
+                
+            rc = nio.call('storage.hb', addr = self._addr, changed_devs = changed_devs, \
+                chunks_report = chunks_report)
+            
+            # Delete old chunks
+            for dev, chunks in rc.deleted_chunks.items():
+                for chunk in chunks:
+                    self._delete_chunk(dev, chunk)
+            
+            time.sleep(5)
+
 
 class DeviceManager(Service):
     """
@@ -244,19 +274,57 @@ class DeviceManager(Service):
         
     mode
         frozen
+        
+    how to send chunkreport? push or poll? use a independent thread or piggiback 
+    with heart beat message?
+    
+    
+    Maybe ideer.py shall contact with storage manager directly, chunk serivce only
+    provides read, write, replicate, delete, report operations etc, it's a clear design.
+    
+    The diffcult is when allocating a new chunk, how to deal with device used size, 
+    we have no idea about the real size of a sparse chunk file
     """
     
-    def __init__(self):
+    def __init__(self, storage_addr):
+        self._storage_service_addr = storage_addr
+                
         self.cache_file = 'exported_devices'
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
         self.cache = self.cm.load(self.cache_file, OODict())
+                
+        self.chunks = {}
+        self.changed = set()
+        self.need_send_report = set()
         
         # If you use a[k] access a dict item, it's converted to OODict automatically
         # For later convenience
         for k, v in self.cache.items():
-            self.cache[k] = OODict(v)
-    
-    def _flush(self):
+            v = OODict(v)
+            self.cache[k] = v
+            if v.status == 'online':
+                thread.start_new_thread(self.scan_chunks, (v,))
+
+    def scan_chunks(self, dev):
+        debug('scanning chunks', dev.path)
+        self.chunks[dev.id] = self.get_chunks_list(dev.path)
+        self.changed.add(dev.id)
+        self.need_send_report.add(dev.id)
+
+    def get_chunks_list(self, path):
+        """Get all the chunks of a device"""
+        root = os.path.join(path, 'OBJECTS')
+        chunks = []
+        for n1 in os.listdir(root):
+            l1 = os.path.join(root, n1)
+            for n2 in os.listdir(l1):
+                l2 = os.path.join(l1, n2)
+                chunks.append(map(lambda f: n1 + n2 +f, os.listdir(l2)))
+        return reduce(lambda x, y : x +y, chunks, [])                
+        
+    def _flush(self, id):
+        """Flush the changes of dev indicated by id"""
+        self.changed.add(id)
         self.cm.save(self.cache, self.cache_file)
         
     def _get_dev(self, path):
@@ -267,7 +335,6 @@ class DeviceManager(Service):
         
         if dev.config.data_type != 'chunk':
             self._error('wrong data type')
-        
         return dev
 
     def online(self, req):
@@ -282,8 +349,10 @@ class DeviceManager(Service):
                 self._error('not offline')
                 
         self.cache[id].status = 'online'
-        self._flush()
-        # Notify stroage manager dev online
+        self._flush(id)
+        
+        # Start another thread to scan all the chunks the new device holds
+        thread.start_new_thread(self.scan_chunks, (dev.config,))
         return 'ok'
         
     def offline(self, req):
@@ -298,7 +367,7 @@ class DeviceManager(Service):
             self._error('not online')
                 
         self.cache[id].status = 'offline'
-        self._flush()
+        self._flush(id)
         # Notify stroage manager dev offline
         return 'ok'
         
@@ -308,7 +377,7 @@ class DeviceManager(Service):
         if id not in self.cache:
             self._error('not in cache')
         del self.cache[id]
-        self._flush()
+        self._flush(id)
         return 'ok'
         
     def frozen(self, req):
@@ -318,15 +387,26 @@ class DeviceManager(Service):
             self._error('not in cache')
 
         self.cache[id].mode = 'frozen'
-        self._flush()
+        self._flush(id)
         return 'ok'
         
     def stat(self, req):
-        return self.cache
+        if req.path == 'all':
+            nio = NetWorkIO(self._storage_service_addr)
+            return nio.call('storage.stat')
+        
+        if req.path == 'local':
+            return self.cache
+        
+        for k, v in self.cache.items():
+            if v['path'] == req.path:
+                return {k: v}
+        
+        self._error('no such dev')
+        
         # Iterate dev cache to get realtime stat here, disk stat is carried with
         # chunk server's heart-beat message
         #return  {'summary': self.statistics, 'disks': self.cache}
-        
 
 
 if __name__ == '__main__':

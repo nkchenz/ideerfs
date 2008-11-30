@@ -105,6 +105,13 @@ commands avaiable in the shell
 ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs help
 
 
+=Advaned=
 
-Service startup
-===============
+display all the devices on local node
+./ideer.py storage stat local
+
+a certain device
+./ideer.py storage stat /data/sda
+
+global infos
+./ideer.py storage stat all

@@ -198,6 +198,9 @@ do we write the data to the final location on disk.  So if you yank
 out the power cord, and inode tables get trashed, they will get
 restored when the journal gets replayed.
 
+For this reason, the Namenode can be configured to support maintaining multiple copies of the FsImage and EditLog. Any update
+to either the FsImage or EditLog causes each of the FsImages and EditLogs to get updated
+synchronously.
 
 =TODO=
 - space management
@@ -208,3 +211,14 @@ restored when the journal gets replayed.
 - *** journal and recovery
 - mapreduce
 - lookaside table cache
+
+
+
+maybe chunk, meta, storage services should run on different ports, or we shall start
+server first, then register service. Now, the situation is that even if we have instantiated
+one service class, server for it is not started yet really. Becareful.
+
+storage.alloc
+storage.free
+
+
