@@ -28,6 +28,7 @@ blocks to other Datanodes.
         
         self.cache = OODict()
         self.nodes = {}
+        self.deleted = defaultdict(list)
         
         # Get all chunks in the whole file system, how to delete chunk?
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
@@ -36,15 +37,12 @@ blocks to other Datanodes.
         debug('loading chunks...')
         self.chunks_file = 'all_chunks'
         self.chunks = self.cm.load(self.chunks_file, OODict())
-        self.chunks_map = OODict()
+        self.chunks_map = defaultdict(set)
         debug('done')
         
     def _flush_chunks(self):
         self.cm.save(self.chunks, self.chunks_file)
         
-    def _flush_deleted():
-        self.cm.save(self.deleted, self.deleted_chunks_file)
-
     def _writeable(self, id):
         return self.cache[id].mode != 'frozen' 
 
@@ -113,20 +111,20 @@ blocks to other Datanodes.
     
     def free(self, req):
         """Delete chunks in dict deleted"""
-        for fid, chunks in req.deleted:
+        for fid, chunks in req.deleted.items():
             fhash = object_hash(fid)
             for chunk in chunks.keys():
                 name = chunk_id(fhash, chunk)
+                name2 = '.'.join([name, str(self.chunks[name]['v'])]) # Real chunk file name with version
                 del self.chunks[name] # Delete index
                 
                 for dev in self.chunks_map[name]: # Delete all replications
-                    if dev not in self.deleted:
-                        self.deleted[dev] = []
-                    self.deleted[dev].append(name)
+                    self.deleted[dev].append(name2)
                 del self.chunks_map[name]
 
         self._flush_chunks()
-    
+        return 'ok'
+        
     def update(self, req):
         """Found object in devs, after writting, update chunk info"""
         chunk = chunk_id(object_hash(req.object_id), req.chunk_id)
@@ -158,12 +156,12 @@ blocks to other Datanodes.
         # Update nodes healthy
         host, _ = req.addr
         if host not in self.nodes:
-            self.nodes[host] = OODict('devs': set([]))
+            self.nodes[host] = OODict({'devs': set([])})
         self.nodes[host].addr = req.addr
         self.nodes[host].update_time = time.time()
             
         # Update changed devs
-        for id, dev in req.changed_devs.items():
+        for id, dev in req.changed_devs.items(): # dev here is a dict
             if not dev and id in self.cache: # Removed
                 del self.cache[id]
                 if id in self.nodes[host].devs:
@@ -171,30 +169,25 @@ blocks to other Datanodes.
             else:
                 dev['host'] = host # Remember the host it came from
                 self.cache[id] = OODict(dev)
-                self.nodes[host].devs.add([dev])
+                self.nodes[host].devs.add(id)
         
         # Update chunk locations
-        deleted = {}
-        for dev, chunks in req.chunks_report.items():
+        deleted = defaultdict(list)
+        for dev, chunks in req.chunks_report.items(): # dev here is actually dev_id
             for chunk in chunks:
                 id, version = chunk.rsplit('.', 1)
                 version = int(version)
                 if id not in self.chunks or version != self.chunks[id]['v']:
                     # Deleted? Stale?
-                    if dev not in deleted:
-                        deleted[dev] = []
                     deleted[dev].append(chunk)
                 else:
                     # Even if version > self.chunks[id]['v'], we honor the latter
-                    if id not in self.chunks_map:
-                        self.chunks_map[id] = set([dev])
-                    else:
-                        self.chunks_map[id].add(dev)
+                    self.chunks_map[id].add(dev)
 
         # See if there are chunks deleted by meta node
         for dev in self.nodes[host].devs:
             if dev in self.deleted:
-                deleted += self.deleted[dev]
+                deleted[dev] += self.deleted[dev]
                 del self.deleted[dev]
 
         return {'deleted_chunks': deleted}

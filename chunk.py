@@ -226,13 +226,17 @@ class ChunkService(Service):
             return
         dev = self.devices.cache[id]
         chf = os.path.join(dev.path, 'OBJECTS', self._hash2path(chunk))
-        dev.used -= get_file_real_size(chf)
-        
+        debug('delete chunk %s on %s' % (chunk, id))
+        debug(dev.used)
         # Safe delete
         try:
+            dev.used -= get_file_real_size(chf)
+            self.devices._flush(dev.id)
+            
             os.remove(chf)
         except OSError:
-           pass
+            pass
+        debug(dev.used)
 
     def _hb_for_storage_manager(self):
         nio = NetWorkIO(self._storage_service_addr)

@@ -19,6 +19,7 @@ ideer@ideer:/chenz/source/ideerfs$ ./ideer.py service start meta,storage,chunk a
 
 import os
 import time
+import sys
 
 root = '/data/test'
 disks = 3
@@ -31,8 +32,12 @@ chunk_devs = [os.path.join(root, 'disk-' + str(x)) for x in range(disks)]
 
 def run(cmd):
     print '$', cmd
-    os.system(cmd)
-
+    try:
+        os.system(cmd)
+    except:
+        print 'ctl+c'
+        sys.exit(-1)
+        
 # Prepare disks
 def cleanup(devs):
     for dev in devs:
@@ -65,17 +70,23 @@ init = [
 
 for cmd in init:
     run(cmd)
-    
-    
+
+print """
+Format and init OK
+Please open another terminal and start the servers now, here is the command:
+
+    $ ./ideer.py service start meta,storage,chunk at %s
+""" % addr
+
 def online(devs):
     for dev in devs:
         run('./ideer.py storage online ' + dev)
     
-    # Show local disk status
-    run('./ideer.py storage stat local')
-    
     # Waitting for the onlined devs updated to storage manager
     time.sleep(seconds_for_update)
+    
+    # Show local disk status
+    run('./ideer.py storage stat local')
     
 # Online device
 online(chunk_devs)
@@ -97,16 +108,19 @@ def show_global():
     # Global Status
     run('./ideer.py storage stat all')
 
+run('./ideer.py storage stat local')
 
 run('./ideer.py fs mkdir foo')
 run('./ideer.py fs store ideer.py /foo/ideer.py.new2')
 run('./ideer.py fs lsdir /foo')
 
-show_global()
+run('./ideer.py storage stat local')
+#show_global()
 
 # Delete file
 run('./ideer.py fs rm -r /foo')
 run('./ideer.py fs lsdir /foo')
 
-show_global()
+run('./ideer.py storage stat local')
+#show_global()
 

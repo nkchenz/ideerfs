@@ -131,11 +131,10 @@ class StorageAdmin:
         """
         rv = self.nio.call('chunk.admin_dev', action = 'stat', path = args.path)
         disks = rv.disks
-        del rv.disks
-        self._show_disks(disks)
-
+        del rv['disks']
         for k, v in rv.items():
             print '%s:' % k, v
+        self._show_disks(disks)
 
 
 class FSShell:

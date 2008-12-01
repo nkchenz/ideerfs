@@ -4,6 +4,7 @@
 from util import *
 from dev import *
 import time
+from nio import *
 
 from obj import Object
 
@@ -15,7 +16,7 @@ class MetaService(Service):
 
     def __init__(self, addr, path, storage_addr):
         self._addr = addr # Address for this service
-        self.storage_addr = storage_addr
+        self._storage_service_addr = storage_addr
         
         self.dev = Dev(path)
         if not self.dev.config:
