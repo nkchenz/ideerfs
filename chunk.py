@@ -227,7 +227,12 @@ class ChunkService(Service):
         dev = self.devices.cache[id]
         chf = os.path.join(dev.path, 'OBJECTS', self._hash2path(chunk))
         dev.used -= get_file_real_size(chf)
-        os.remove(chf)
+        
+        # Safe delete
+        try:
+            os.remove(chf)
+        except OSError:
+           pass
 
     def _hb_for_storage_manager(self):
         nio = NetWorkIO(self._storage_service_addr)
@@ -396,11 +401,11 @@ class DeviceManager(Service):
             return nio.call('storage.stat')
         
         if req.path == 'local':
-            return self.cache
+            return {'disks': self.cache}
         
         for k, v in self.cache.items():
             if v['path'] == req.path:
-                return {k: v}
+                return {'disks': {k: v}}
         
         self._error('no such dev')
         

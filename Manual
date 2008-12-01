@@ -43,12 +43,12 @@ servers is running now.
 * start services on different nodes, we do not need this in this example
 
 node A 192.168.1.100:
+    # Meta service needs to know where is storage service
     ideer.py service use /data/sda as meta device
+    ideer.py service storage at 192.168.1.101:1984
     ideer.py service start meta at 192.168.1.100:1984 
     
 node B 192.168.1.101:
-    # Storage service needs to know where is meta service
-    ideer.py service meta at 192.168.1.100:1984
     ideer.py service start storage at 192.168.1.101:1984
     
 node C 192.168.1.102:

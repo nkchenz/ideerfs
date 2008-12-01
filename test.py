@@ -24,6 +24,7 @@ root = '/data/test'
 disks = 3
 addr = 'localhost:1984'
 
+seconds_for_update = 10
 
 meta_dev = os.path.join(root, 'disk-meta')
 chunk_devs = [os.path.join(root, 'disk-' + str(x)) for x in range(disks)]
@@ -73,11 +74,11 @@ def online(devs):
     # Show local disk status
     run('./ideer.py storage stat local')
     
+    # Waitting for the onlined devs updated to storage manager
+    time.sleep(seconds_for_update)
+    
 # Online device
 online(chunk_devs)
-
-# Silent time, waitting for status of online devices got updated
-time.sleep(10)
 
 # Create some files
 run('./ideer.py fs touch a b c ')
@@ -89,8 +90,23 @@ run('./ideer.py fs restore /ideer.py ideer.py.new')
 run('diff ideer.py ideer.py.new')
 
 
-# Waitting for disks status got updated
-time.sleep(10)
+def show_global():
+    # Waitting for disks status got updated
+    time.sleep(seconds_for_update)
 
-# Global Status
-run('./ideer.py storage stat all')
+    # Global Status
+    run('./ideer.py storage stat all')
+
+
+run('./ideer.py fs mkdir foo')
+run('./ideer.py fs store ideer.py /foo/ideer.py.new2')
+run('./ideer.py fs lsdir /foo')
+
+show_global()
+
+# Delete file
+run('./ideer.py fs rm -r /foo')
+run('./ideer.py fs lsdir /foo')
+
+show_global()
+

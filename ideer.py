@@ -130,12 +130,12 @@ class StorageAdmin:
         # total_disks, invalid_disks
         """
         rv = self.nio.call('chunk.admin_dev', action = 'stat', path = args.path)
-        if args.path == 'all':
-            print rv.chunks
-            print rv.maps
-            self._show_disks(rv.disks)
-        else:
-            self._show_disks(rv)
+        disks = rv.disks
+        del rv.disks
+        self._show_disks(disks)
+
+        for k, v in rv.items():
+            print '%s:' % k, v
 
 
 class FSShell:
@@ -153,7 +153,7 @@ class FSShell:
             'get_chunk_info $file $chunk_id': 'get_chunk_info',
             'get $attrs of $file': 'get_file_meta', 
             'set $attrs of $file to $values': 'set_file_attr',
-            'rm $files': 'rm',
+            'rm $files': 'rm', # match rm [-r|-R]
             'mv $old_file $new_file': 'mv',
             'store $localfile $file': 'store', # cp from local
             'restore $file $localfile': 'restore', # cp to local
@@ -351,21 +351,21 @@ class ServiceController:
             return -1
         addr = (args.host, int(args.port))
         
+        if 'storage' in ss:
+            server.register('storage', StorageService(addr))
+            self.services.storage = addr
+        
         # Start meta service
         if 'meta' in ss:
             path = self.cm.load('meta_dev')
             if not path:
                 print 'please set meta device first'
                 return -1
-            server.register('meta', MetaService(addr, path))
-            self.services.meta = addr
-
-        if 'storage' in ss:
-            if 'meta' not in self.services:
-                print 'where is meta service?'
+            if 'storage' not in self.services:
+                print 'where is storage service?'
                 return -1 
-            server.register('storage', StorageService(addr, self.services.meta))
-            self.services.storage = addr
+            server.register('meta', MetaService(addr, path, self.services.storage))
+            self.services.meta = addr
         
         if 'chunk' in ss:
             if 'storage' not in self.services:

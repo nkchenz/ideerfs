@@ -23,9 +23,8 @@ still have fewer than the specified number of replicas. The Namenode then replic
 blocks to other Datanodes.
     """
     
-    def __init__(self, addr, meta_addr):
+    def __init__(self, addr):
         self._addr = addr
-        self._meta_service_addr = meta_addr
         
         self.cache = OODict()
         self.nodes = {}
@@ -35,13 +34,16 @@ blocks to other Datanodes.
         # all_chunks stored all alive chunks in the entire system, it's critical important
         
         debug('loading chunks...')
-        self.chunks = self.cm.load('all_chunks', {})
+        self.chunks_file = 'all_chunks'
+        self.chunks = self.cm.load(self.chunks_file, OODict())
         self.chunks_map = OODict()
         debug('done')
         
-        
     def _flush_chunks(self):
-        self.cm.save(self.chunks, 'all_chunks')
+        self.cm.save(self.chunks, self.chunks_file)
+        
+    def _flush_deleted():
+        self.cm.save(self.deleted, self.deleted_chunks_file)
 
     def _writeable(self, id):
         return self.cache[id].mode != 'frozen' 
@@ -110,11 +112,20 @@ blocks to other Datanodes.
         
     
     def free(self, req):
-        chunk = chunk_id(object_hash(req.object_id), req.chunk_id)
-        if chunk in self.chunks:
-            del self.chunks[chunk]
-            self._flush_chunks()
-            del self.chunks_map[chunk]
+        """Delete chunks in dict deleted"""
+        for fid, chunks in req.deleted:
+            fhash = object_hash(fid)
+            for chunk in chunks.keys():
+                name = chunk_id(fhash, chunk)
+                del self.chunks[name] # Delete index
+                
+                for dev in self.chunks_map[name]: # Delete all replications
+                    if dev not in self.deleted:
+                        self.deleted[dev] = []
+                    self.deleted[dev].append(name)
+                del self.chunks_map[name]
+
+        self._flush_chunks()
     
     def update(self, req):
         """Found object in devs, after writting, update chunk info"""
@@ -146,18 +157,21 @@ blocks to other Datanodes.
     def hb(self, req):
         # Update nodes healthy
         host, _ = req.addr
-        info = OODict()
-        info.addr = req.addr
-        info.update_time = time.time()
-        self.nodes[host] = info
-        
+        if host not in self.nodes:
+            self.nodes[host] = OODict('devs': set([]))
+        self.nodes[host].addr = req.addr
+        self.nodes[host].update_time = time.time()
+            
         # Update changed devs
         for id, dev in req.changed_devs.items():
             if not dev and id in self.cache: # Removed
                 del self.cache[id]
+                if id in self.nodes[host].devs:
+                    self.nodes[host].devs.remove(id)
             else:
                 dev['host'] = host # Remember the host it came from
                 self.cache[id] = OODict(dev)
+                self.nodes[host].devs.add([dev])
         
         # Update chunk locations
         deleted = {}
@@ -177,11 +191,17 @@ blocks to other Datanodes.
                     else:
                         self.chunks_map[id].add(dev)
 
+        # See if there are chunks deleted by meta node
+        for dev in self.nodes[host].devs:
+            if dev in self.deleted:
+                deleted += self.deleted[dev]
+                del self.deleted[dev]
+
         return {'deleted_chunks': deleted}
 
 
     def stat(self, req):
-        return {'disks': self.cache, 'chunks': self.chunks, 'maps': self.chunks_map}
+        return {'disks': self.cache, 'chunks': len(self.chunks) }
     
     
     

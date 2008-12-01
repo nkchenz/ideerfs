@@ -13,8 +13,10 @@ class MetaService(Service):
     one metadev in the whole system.
     """
 
-    def __init__(self, addr, path):
+    def __init__(self, addr, path, storage_addr):
         self._addr = addr # Address for this service
+        self.storage_addr = storage_addr
+        
         self.dev = Dev(path)
         if not self.dev.config:
             print 'not formatted', path
@@ -27,8 +29,6 @@ class MetaService(Service):
         if self.root_id is None or not self._lookup('/'):
             print 'root object not found'
             sys.exit(-1)
-            
-        self.deleted_chunks_file = 'deleted_chunks'
 
     def _next_seq(self):
         # We should get a multi thread lock here to protect 'SEQ' file
@@ -190,34 +190,31 @@ class MetaService(Service):
         return data
     
     def _delete_recursive(self, obj):
+        deleted = {}
         for name, id in obj.children.items():
             if name in ['.', '..']:
                 continue
-            
             child = self._get_object(id)
             if not child:
                 # Object already missing, so dont bother to delete
                 pass
             if child.type == 'dir':
-                self._delete_recursive(child)
+                tmp = self._delete_recursive(child)
             if child.type == 'file':
-                self._delete_file(child)
-        
+                tmp = self._delete_file(child)
+            deleted.update(tmp)
         # Delete self
         self._delete_object(obj.id)
+        return deleted
     
         
     def _delete_file(self, obj):
         """Delete file type object"""
-        chunks = []
-        for chunk_id, info in obj.chunks.items():
-            info = OODict(info)
-            line = '%d %d %d %s\n' % (obj.id, chunk_id, info.version, ','.join(info.dev_ids))
-            chunks.append(line)
-        if chunks:
-            self.dev.config_manager.append(''.join(chunks), self.deleted_chunks_file)
         self._delete_object(obj.id)
-
+        if obj.chunks:
+            return {obj.id: obj.chunks}
+        else:
+            return {}
 
     def delete(self, req):
         """Delete file, store the free chunks to file 'deleted_chunks', tell
@@ -242,11 +239,11 @@ class MetaService(Service):
                     if not req.recursive:
                         self._error('dir not empty')
                 # Delete dir recursively
-                self._delete_recursive(obj)
+                deleted = self._delete_recursive(obj)
         
              #Delete file
             if obj.type == 'file':
-                self._delete_file(obj)
+                deleted = self._delete_file(obj)
         else:
             # Shall we return error?
             #self._error('file object missing')
@@ -254,7 +251,12 @@ class MetaService(Service):
         # Delete entry in parent
         del parent.children[name]
         self._save_object(parent)
-        
+
+        # Free chunks to storage
+        nio = NetWorkIO(self._storage_service_addr)
+        nio.call('storage.free', deleted = deleted)
+        nio.close()
+
         return 'ok'
     
     
