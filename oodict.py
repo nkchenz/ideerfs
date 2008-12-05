@@ -39,18 +39,22 @@ class OODict(dict):
     {'a': 0, 'c': {'e': {'e': 'e'}, 'd': 2}, 'b': 2, 'e': 0, 'f': {'f': 'f'}}
     >>> a.c.e.e
     'e'
-
+    >>> a['c']['e'].e
+    'e'
+    
     """
     def __init__(self, data = {}):
         dict.__init__(self, data)
 
-    def __getattr__(self, key):
-        value = self[key]
-        # if value is the only key in object, it can be omited
+    def __getitem__(self, key):
+        value = dict.__getitem__(self, key)
         if isinstance(value, dict) and not isinstance(value, OODict):
             value = OODict(value)
-            self[key] = value
+            self[key] = value # Auto covert children dict to OODict 
         return value
+        
+    def __getattr__(self, key):
+        return self[key]
 
     def __setattr__(self, key, value):
         self[key] = value
