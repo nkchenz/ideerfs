@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Meta service
+"""
 
 from util import *
 from dev import *

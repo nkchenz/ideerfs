@@ -1,11 +1,7 @@
-#!/usr/bin/python
 # coding: utf8
 
 """
 High Availabile NetWork IO
-CopyRight (C) 2008 Chen Zheng <nkchenz@gmail.com>
-
-Distributed under terms of GPL v2
 """
 
 import socket

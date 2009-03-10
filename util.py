@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Misc utils
+"""
 
 import os
 from oodict import OODict

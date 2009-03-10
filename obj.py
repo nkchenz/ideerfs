@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Object interface
+"""
 
 import time
 import hashlib

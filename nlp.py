@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Natural language like arguments parser
+"""
 
 import re
 from oodict import OODict

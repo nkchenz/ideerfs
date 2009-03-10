@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Simple TCP server framework
+"""
 
 import os
 import socket

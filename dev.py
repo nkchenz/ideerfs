@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Interface for real disk device
+"""
 
 import sys
 from oodict import OODict
@@ -15,7 +16,7 @@ class Dev:
             self.config_manager = ConfigManager(os.path.join(path))
             self.config_file = 'config'
             self.config = self.config_manager.load(self.config_file, OODict())
-    
+
     def init(self, args):
         # path, host, size are all in args
         args.used = 0
@@ -30,4 +31,4 @@ class Dev:
     def flush(self):
         self.config_manager.save(self.config, self.config_file)
 
-        
+

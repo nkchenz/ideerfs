@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+OnWire protocal
+"""
 
 import pprint
 import socket

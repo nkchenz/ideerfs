@@ -1,5 +1,7 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Chunk service
+"""
+
 import os
 from oodict import OODict
 import hashlib

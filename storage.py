@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Storage service: manage and allocate storage
+"""
 
 from util import *
 from dev import *

@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Network IO interface, like the RPC
+"""
 
 import os
 import socket
@@ -21,9 +22,7 @@ class NetWorkIO:
     """
 
     def __init__(self, addr):
-        # 发送出去之后，启动重试超时
-        # 默认重试，超时时间。如果Call给定的值为0，则使用此值
-        #self.timeout_on_no_ack = 30 # 如果过此时间仍没有收到ack，则重新发送请求  
+        #self.timeout_on_no_ack = 30 
         #self.retrys_on_no_ack = 3
 
         # Retry numbers on socket connect error

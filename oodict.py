@@ -1,5 +1,6 @@
 """
 OODict: object view of dict
+
 Copyright (C) 2008 Chen Zheng <nkchenz@gmail.com>
 Distributed under terms of GPL v2
 """

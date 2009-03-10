@@ -1,14 +1,12 @@
-#!/usr/bin/python
-# coding: utf8
-
 """
-FS interface
+FS client interface
 
 refs:
 http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/FileSystem.html
 http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/dfs/DistributedFileSystem.html
 http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/kfs/KosmosFileSystem.html
 """
+
 from nio import *
 from util import *
 

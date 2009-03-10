@@ -1,6 +1,3 @@
-#!/usr/bin/python
-# coding: utf8
-
 # -- client
 class ResponseError(IOError):
     pass

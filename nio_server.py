@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+Network IO server, based on the 'Server' class
+"""
 
 import os
 import sys

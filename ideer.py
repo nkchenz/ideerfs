@@ -1,5 +1,6 @@
-#!/usr/bin/python
-# coding: utf8
+"""
+ideer shell
+"""
 
 import os
 import sys
