@@ -9,29 +9,7 @@ import hashlib
 
 from exception import *
 
-class defaultdict(dict):
-    """
-    a = defaultdict(list)
-
-    Once 'a[key]' is used, a default value is returned if key does not exist, but
-    BE VERY CAREFUL that key is also set, it exists now.
-    
-    If you dont wanna key be set, use the old 'key in a' test first.
-    
-    """
-    def __init__(self, foo):
-        self.default_generator = foo
-
-    def __getitem__(self, key):
-        print key
-        try:
-            value = dict.__getitem__(self, key)
-            return value
-        except:
-            value = self.default_generator()
-            self.__setitem__(key, value)       
-            return value
-    
+   
 
 
 class Service:

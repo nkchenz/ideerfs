@@ -1,7 +1,6 @@
 """
 Storage service: manage and allocate storage
 """
-
 from util import *
 from dev import *
 import time
@@ -191,19 +190,9 @@ blocks to other Datanodes.
                 deleted[dev] += self.deleted[dev]
                 del self.deleted[dev]
 
-        return {'deleted_chunks': deleted}
+        return {'deleted_chunks': dict(deleted)}
 
 
     def stat(self, req):
         return {'disks': self.cache, 'chunks': len(self.chunks) }
-    
-    
-    
-if __name__ == '__main__':
-    
-    ss = StorageService('', '')
-    req = OODict({'object_id': 8, 'n': 3, 'chunk_id': 0, '_id': 0, 'method': 'storage.malloc', 'size': 67108864}
-)
-    ss.malloc(req)
-    
     
