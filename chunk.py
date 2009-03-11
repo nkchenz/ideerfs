@@ -3,11 +3,13 @@ Chunk service
 """
 
 import os
-from oodict import OODict
 import hashlib
+
+from oodict import OODict
 from util import *
 from dev import *
 from nio import *
+from service import *
 
 CHUNK_HEADER_SIZE = 1024
 
@@ -419,6 +421,3 @@ class DeviceManager(Service):
         # chunk server's heart-beat message
         #return  {'summary': self.statistics, 'disks': self.cache}
 
-
-if __name__ == '__main__':
-    pass

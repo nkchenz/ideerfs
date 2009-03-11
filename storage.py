@@ -1,12 +1,14 @@
 """
 Storage service: manage and allocate storage
 """
-from util import *
-from dev import *
 import time
 import hashlib
-
 import random
+from collections import defaultdict
+
+from util import *
+from dev import *
+from service import *
 
 class StorageService(Service):
     """

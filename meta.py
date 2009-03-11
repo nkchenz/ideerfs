@@ -1,13 +1,13 @@
 """
 Meta service
 """
+import time
 
 from util import *
 from dev import *
-import time
 from nio import *
-
-from obj import Object
+from obj import *
+from service import *
 
 class MetaService(Service):
     """
@@ -300,11 +300,3 @@ class MetaService(Service):
         if old_parent_name != new_parent_name:
             self._save_object(new_parent)
         return 'ok'
-    
-
-if __name__ == '__main__':
-    meta = MetaService('/data/sda')
-    req = OODict()
-    req.file = '/test'
-    req.recursive = True
-    meta.delete(req)

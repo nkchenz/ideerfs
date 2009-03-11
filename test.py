@@ -25,7 +25,7 @@ import os
 import time
 import sys
 
-root = '/data/test'
+root = '~/ideerfs.test'
 disks = 3
 addr = 'localhost:1984'
 

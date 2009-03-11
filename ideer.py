@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 """
 ideer shell
 """
@@ -395,7 +397,7 @@ if cmd_class not in command_sets:
     sys.exit(-1)
     
 # Set dispatcher and rules for nlp
-dispatcher = globals()[command_sets[cmd_class]]() # Only get the needed hanlder
+dispatcher = globals()[command_sets[cmd_class]]() # Only get the needed handler
 nlp = NLParser(dispatcher)
 input = ' '.join(sys.argv[2:])
 try:

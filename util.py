@@ -3,26 +3,10 @@ Misc utils
 """
 
 import os
-from oodict import OODict
 from pprint import pformat
 import hashlib
 
-from exception import *
-
-   
-
-
-class Service:
-    def _error(self, message):
-        raise RequestHandleError(message)
-    
-    def _hash2path(self, hash):
-        return os.path.join(hash[:3], hash[3:6], hash[6:])
-    
-    def _id2path(self, id):
-        """Map object id number to storage path, this can be changed to other methods"""
-        hash = hashlib.sha1(str(id)).hexdigest()
-        return self._hash2path(hash)
+from oodict import OODict
 
 class ConfigManager:
     def __init__(self, root):
@@ -113,10 +97,8 @@ def debug(*vars):
         print str(var),
     print
     
-    
 def zeros(n):
     return '\0' * n
-
 
 def filter_req(req):
     """Filter payload of req, for debug use"""

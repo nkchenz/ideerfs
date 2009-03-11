@@ -1,13 +1,11 @@
 Simple howto
 =============
 
-There are three kind of services:
-meta for namespace service, only has one meta device
-storage for storage management
-chunk for data services, may have many chunk devices
+There are three kind of services: meta, storage and chunk, providing namespace,
+storage management, and data chunk data service respectively.
 
-Usually, each node in the cluster provides only one service, but different services
-can be on the same node as you will see in the following little example.
+Usually, each node in cluster run only one service, but different services surely
+can be on the same node, which you will see in the following example.
 
 
 1.format devices
@@ -115,3 +113,13 @@ a certain device
 
 global infos
 ./ideer.py storage stat all
+
+=Others=
+kill service
+
+global config file?
+
+start service ip.port dev
+start meta localhost 1984 /dev/sda
+start storagemanager localhost 1985 /dev/sdb
+start chunk service device list

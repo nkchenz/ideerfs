@@ -27,3 +27,5 @@ class Object(OODict):
         else:
             self.meta['size'] = 0
             self.chunks = {}
+
+
