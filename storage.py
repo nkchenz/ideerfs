@@ -9,6 +9,10 @@ from collections import defaultdict
 from util import *
 from dev import *
 from service import *
+from obj import *
+from oodict import *
+from io import *
+import config
 
 class StorageService(Service):
     """
@@ -26,24 +30,24 @@ blocks to other Datanodes.
     """
     
     def __init__(self, addr):
-        self._addr = addr
+        self._addr = config.storage_manager_address
         
         self.cache = OODict()
         self.nodes = {}
         self.deleted = defaultdict(list)
         
         # Get all chunks in the whole file system, how to delete chunk?
-        self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
+        self._driver = FileDB(os.path.expanduser('~/.ideerfs/'))
         # all_chunks stored all alive chunks in the entire system, it's critical important
         
         debug('loading chunks...')
         self.chunks_file = 'all_chunks'
-        self.chunks = self.cm.load(self.chunks_file, OODict())
+        self.chunks = self._driver.load(self.chunks_file, OODict())
         self.chunks_map = defaultdict(set)
         debug('done')
         
     def _flush_chunks(self):
-        self.cm.save(self.chunks, self.chunks_file)
+        self._driver.store(self.chunks, self.chunks_file)
         
     def _writeable(self, id):
         return self.cache[id].mode != 'frozen' 
@@ -55,6 +59,7 @@ blocks to other Datanodes.
         return self._is_alive(dev.host) and dev.status == 'online'
 
     def _is_alive(self, host):
+        """newer than 120 seconds"""
         return host in self.nodes and time.time() - self.nodes[host].update_time < 120 
     
     def _free_enough(self, id, size):
@@ -154,7 +159,7 @@ blocks to other Datanodes.
         return 'ok'
 
 
-    def hb(self, req):
+    def heartbeat(self, req):
         # Update nodes healthy
         host, _ = req.addr
         if host not in self.nodes:

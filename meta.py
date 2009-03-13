@@ -1,73 +1,49 @@
 """
 Meta service
+
+meta should be kept in memory using a special data structure such as a B+
+tree, with journal on persistent storage, and periodicly flush and checkpoint.
+
+Big data chunks are stored to disks directly.
+
 """
+
 import time
 
 from util import *
-from dev import *
 from nio import *
 from obj import *
 from service import *
+import config
+
 
 class MetaService(Service):
     """
-    all object except data chunk object are stored on meta dev. There are only 
+    All object except data chunk object are stored on meta dev. There are only 
     one metadev in the whole system.
+
+
+    create root if needed, object layer know nothing about root
     """
 
-    def __init__(self, addr, path, storage_addr):
-        self._addr = addr # Address for this service
-        self._storage_service_addr = storage_addr
+    def __init__(self):
+        self._object_shard =  ObjectShard()
         
-        self.dev = Dev(path)
-        if not self.dev.config:
-            print 'not formatted', path
-            sys.exit(-1) # Fatal error
-        
-        self.seq_file = 'seq'
-        self.meta_dir = 'META'
-        self.root_id_file = 'root_id'
-        self.root_id = self.dev.config_manager.load(self.root_id_file)
-        if self.root_id is None or not self._lookup('/'):
-            print 'root object not found'
-            sys.exit(-1)
-
-    def _next_seq(self):
-        # We should get a multi thread lock here to protect 'SEQ' file
-        seq = self.dev.config_manager.load(self.seq_file)
-        if seq is None:
-            return None
-        seq += 1
-        self.dev.config_manager.save(seq, self.seq_file)
-        # Make sure successfully saved
-        #return hashlib.sha1.hexdigest(str(seq))
-        return seq
-    
-    def _delete_object(self, id):
-        self.dev.config_manager.remove(os.path.join(self.meta_dir, self._id2path(id)))
-
-    def _get_object(self, id):
-        return self.dev.config_manager.load(os.path.join(self.meta_dir, self._id2path(id)))
-
-    def _save_object(self, obj):
-        # Check if object already exists?
-        self.dev.config_manager.save(obj, os.path.join(self.meta_dir, self._id2path(obj.id)))
-
     def _isdir(self, obj):
         return obj.type == 'dir'
 
     def _lookup(self, file):
         """Find a absolute path"""
+        root_id = 1
         if file == '/':
-            return self._get_object(self.root_id)
+            return self._object_shard.load_object(root_id)
         names = file.split('/')
         names.pop(0) # Remove
         debug('lookup ' + file)
         debug(names)
-        debug('/', self.root_id)
-        parent_id = self.root_id
+        parent_id = root_id
         for name in names:
-            parent = self._get_object(parent_id)
+            parent = self._object_shard.load_object(parent_id)
             if not parent or not self._isdir(parent):
                 return None
             if name not in parent.children:
@@ -75,7 +51,7 @@ class MetaService(Service):
             id = parent.children[name]
             debug(name, id)
             parent_id = id
-        return self._get_object(id)
+        return self._object_shard.load_object(id)
         
     def exists(self, req):
         """Check if a file exists"""
@@ -115,7 +91,7 @@ class MetaService(Service):
                 continue
             obj.meta[k] = v
         obj.meta.mtime = '%d' % time.time()
-        self._save_object(obj)
+        self._object_shard.store_object(obj)
         return 'ok'
 
     def lsdir(self, req): 
@@ -162,7 +138,7 @@ class MetaService(Service):
         if myname in parent.children:
             self._error('file exists')
          
-        id = self._next_seq()
+        id = self._object_shard.create_object()
         if not id:
             self._error('next seq error')
     
@@ -170,14 +146,16 @@ class MetaService(Service):
         parent.children[myname] = id
         
         # A journal-log should be created in case failure between these two ops
-        self._save_object(parent)
-        self._save_object(new_file)
+        self._object_shard.store_object(parent)
+        self._object_shard.store_object(new_file)
         
         return id
 
     def get_chunks(self, req):
         """
-        Find chunks in whose id is in the list req.chunks
+        Return infos of chunks in req.chunks, such as version. Need to lookup
+        for storage manager to get the location infos. Should we store them
+        with meta data? 
         """
         f = self._lookup(req.file)
         if f is None or self._isdir(f):
@@ -196,7 +174,7 @@ class MetaService(Service):
         for name, id in obj.children.items():
             if name in ['.', '..']:
                 continue
-            child = self._get_object(id)
+            child = self._object_shard.load_object(id)
             if not child:
                 # Object already missing, so dont bother to delete
                 pass
@@ -212,7 +190,7 @@ class MetaService(Service):
         
     def _delete_file(self, obj):
         """Delete file type object"""
-        self._delete_object(obj.id)
+        self._object_shard.delete_object(obj.id)
         if obj.chunks:
             return {obj.id: obj.chunks}
         else:
@@ -234,8 +212,8 @@ class MetaService(Service):
         if not parent or name not in parent.children:
             self._error('no such file or directory')
 
-        obj = self._get_object(parent.children[name])
-        if obj:        
+        obj = self.object_shard.load_object(parent.children[name])
+        if obj:
             if obj.type == 'dir':
                 if len(obj.children) > 2:
                     if not req.recursive:
@@ -252,10 +230,10 @@ class MetaService(Service):
             pass
         # Delete entry in parent
         del parent.children[name]
-        self._save_object(parent)
+        self._object_shard.store_object(parent)
 
-        # Free chunks to storage
-        nio = NetWorkIO(self._storage_service_addr)
+        # Free chunks to storage, this should be done in another thread
+        nio = NetWorkIO(config.storage_server_address)
         nio.call('storage.free', deleted = deleted)
         nio.close()
 
@@ -296,7 +274,8 @@ class MetaService(Service):
         new_parent.children[new_name] = old_parent.children[old_name]
         del old_parent.children[old_name]
         
-        self._save_object(old_parent)
+        self._object_shard.store_object(old_parent)
         if old_parent_name != new_parent_name:
-            self._save_object(new_parent)
+            self._object_shard.store_object(new_parent)
         return 'ok'
+

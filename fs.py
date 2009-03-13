@@ -282,15 +282,3 @@ class File:
             self.fs.update_chunk_info(meta.id, chunk, info.version, devs, new, meta.replication_factor)
             
         return bytes
-
-if __name__ == '__main__':
-
-    foo = FileSystem()
-    foo.exists('/')
-    foo.exists('/c')
-    foo.mkdir('/')
-    foo.exists('/')
-
-    foo.mkdir('/a')
-    foo.mkdir('/b')
-    foo.lsdir('/')

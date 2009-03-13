@@ -18,16 +18,16 @@ from nio import *
 from dev import *
 
 from nio_server import *
-        
+
 from obj import Object
 
 
 class StorageAdmin:
     """
     Request local chunk server, which is just a proxy agent of the global storage
-    manager,  to do the storage management for local node. 
+    manager,  to do the storage management for local node.
     """
-    
+
     def __init__(self):
         # Usage format, symbols beginning with '$' are vars which you can use directly
         # in the 'args' parameter
@@ -49,69 +49,37 @@ class StorageAdmin:
     def _connect_chunk_service(self):
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
         self.services = self.cm.load('services', OODict())
-        
+
         if 'chunk' not in self.services:
             print 'where is local chunk service?'
             sys.exit(-1)
 
         self.nio = NetWorkIO(self.services.chunk)
-        
+
 
     def format(self, args):
         # Format new device
-        if not os.path.exists(args.path):
-            print args.path, 'not exists'
-            return False
-        
-        size = size2byte(args.size)
-        if size is None:
-            print 'wrong size', args.size
-            return False
-        args.size = size
-        
-        types = ['meta', 'chunk']
-        if args.data_type not in types:
-            print 'wrong data_type, only support', types 
-            return False
-
-        dev = Dev(args.path)
-        if dev.config:
-            print 'already formatted?'
-            sys.exit(-1)
-            
-        dev.init(args)
-        dev.flush()
-        
-        # Create necessary files for meta device
-        if args.data_type == 'meta':
-            root_id = 1
-            dev.config_manager.save(root_id, 'seq')
-            dev.config_manager.save(root_id, 'root_id')
-            dev.config_manager.save(Object('/', root_id, root_id, 'dir'), \
-                'META/356/a19/2b7913b04c54574d18c28d46e6395428ab')
-        else:
-            os.mkdir(os.path.join(args.path, 'OBJECTS'))
         print 'format ok'
 
     def online(self, args):
         self.nio.call('chunk.admin_dev', action = 'online', path = args.path)
-    
+
     def offline(self, args):
         self.nio.call('chunk.admin_dev', action = 'offline', path = args.path)
-        
+
     def frozen(self, args):
         self.nio.call('chunk.admin_dev', action = 'frozen', path = args.path)
-    
+
     def remove(self, args):
         self.nio.call('chunk.admin_dev', action = 'remove', path = args.path)
 
     def replace(self, args):
         self.nio.call('chunk.admin_dev', action = 'replace', \
             old_path = args.old_path, new_path = args.new_path)
-        
+
         # First transfer data to other devs automatically, then remove
-        
-        
+
+
     def _show_disks(self, cache):
         for id, dev in cache.items():
             dev = OODict(dev)
@@ -121,15 +89,15 @@ class StorageAdmin:
                 host = ''
             print '%s %s/%s %d%% %s %s %s' %(dev.path, byte2size(dev.used), byte2size(dev.size), \
                 dev.used * 100 / dev.size, dev.status, dev.mode, host)
-                
+
     def stat(self, args):
         """
         Show storage status
-        
+
         stat all       status of the global pool
         stat local     status of local devs
         stat /data/sda status of a local dev
-        
+
         # total_disks, invalid_disks
         """
         rv = self.nio.call('chunk.admin_dev', action = 'stat', path = args.path)
@@ -145,15 +113,15 @@ class FSShell:
         # Is there a easy way to export envs still exists after this program exit
         # os.environ did not work
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
-        
+
         self.usage_rules = {
-            'lsdir': 'lsdir', 
+            'lsdir': 'lsdir',
             'lsdir $dir': 'lsdir',
             'mkdir $dirs': 'mkdir',
             'exists $file': 'exists',
-            'get_file_meta $file': 'get_file_meta', 
+            'get_file_meta $file': 'get_file_meta',
             'get_chunk_info $file $chunk_id': 'get_chunk_info',
-            'get $attrs of $file': 'get_file_meta', 
+            'get $attrs of $file': 'get_file_meta',
             'set $attrs of $file to $values': 'set_file_attr',
             'rm $files': 'rm', # match rm [-r|-R]
             'mv $old_file $new_file': 'mv',
@@ -162,23 +130,23 @@ class FSShell:
             #'cp src $src dest $dest': 'cp',
             'cp $src $dest': 'cp',
             'stat': 'stat',
-            'touch $files': 'touch', 
+            'touch $files': 'touch',
             'cd $dir': 'cd',
             'pwd': 'pwd'
             }
-        
+
         self.services = self.cm.load('services', OODict())
         if 'meta' not in self.services:
             print 'where is meta service?'
             sys.exit(-1)
         if 'storage' not in self.services:
             print 'where is storage service?'
-            sys.exit(-1)   
-        self.fs = FileSystem(self.services.meta, self.services.storage)            
-            
+            sys.exit(-1)
+        self.fs = FileSystem(self.services.meta, self.services.storage)
+
     def _getpwd(self):
         return self.cm.load('pwd', '')
-    
+
     def _normpath(self, dir):
         # Normalize path with PWD env considered
         p = os.path.join(self._getpwd(), dir)
@@ -187,17 +155,17 @@ class FSShell:
         # Make sure it's an absolute path, pwd is client only, path is assumed to
         # be absolute when communicating with meta node
         return os.path.normpath(os.path.join('/', p))
-    
+
     def cd(self, args):
         dir = self._normpath(args.dir)
         meta = self.fs.get_file_meta(dir)
         if meta and meta.type == 'dir':
             self.cm.save(dir, 'pwd')
-    
+
     def get_file_meta(self, args):
         file = self._normpath(args.file)
         print self.fs.get_file_meta(file)
-        
+
     def get_chunk_info(self, args):
         file = self._normpath(args.file)
         meta = self.fs.get_file_meta(file)
@@ -207,7 +175,7 @@ class FSShell:
             return
         print chunk_path(meta.id, args.chunk_id, info.version)
         print info
-        
+
     def store(self, args):
         """Store local file to the fs"""
         src = args.localfile
@@ -221,7 +189,7 @@ class FSShell:
         self.fs.create(dest, replication_factor = 3, chunk_size = 67108864)
         f = self.fs.open(dest)
         f.write(0, data)
-        
+
     def restore(self, args):
         """Restore file in the fs to local filesystem"""
         file = self._normpath(args.file)
@@ -229,23 +197,23 @@ class FSShell:
         f = self.fs.open(file)
         data = f.read(0, meta.size)
         open(args.localfile, 'w').write(data)
-        
-            
+
+
     def cp(self, args):
         src = self._normpath(args.src)
         dest = self._normpath(args.dest)
         meta = self.fs.get_file_meta(src)
         f = self.fs.open(src)
         data = f.read(0, meta.size)
-        
+
         self.fs.create(dest, replication_factor = 3, chunk_size = 67108864)
         f = self.fs.open(dest)
         f.write(0, data)
-        
+
 
     def exists(self, args):
         print self.fs.exists(args.file)
-        
+
     def lsdir(self, args):
         if 'dir' not in args: # If no dir, then list pwd dir
             args.dir = ''
@@ -257,19 +225,19 @@ class FSShell:
             print ' '.join(sorted(files))
 
     def mkdir(self, args):
-        # dirs can't be empty because in that case we wont get here, cant pass nlp 
+        # dirs can't be empty because in that case we wont get here, cant pass nlp
         for dir in args.dirs.split():
             dir = self._normpath(dir)
             self.fs.mkdir(dir)
-                
+
     def pwd(self, args):
         print self._getpwd()
-        
+
     def touch(self, args):
         for file in args.files.split():
             file = self._normpath(file)
             self.fs.create(file, replication_factor = 3, chunk_size = 2 ** 25) #32m
-        
+
     def rm(self, args):
         files = args.files.split()
         recursive = False
@@ -279,7 +247,7 @@ class FSShell:
         for file in files:
             file = self._normpath(file)
             self.fs.delete(file, recursive)
-            
+
     def mv(self, args):
         old_file = self._normpath(args.old_file)
         new_file = self._normpath(args.new_file)
@@ -296,16 +264,16 @@ class JobController:
 class ServiceController:
     """
     ideer service use /data/sda as meta device
-    ideer service start meta at localhost:1984 
-    
+    ideer service start meta at localhost:1984
+
     # Storage service needs to know where is meta service
     ideer service meta at localhost:1984
     ideer service start storage at localhost:1984
-    
+
     # Chunk service needs to know where is storage service
     ideer service storage at localhost:1984
     ideer service start chunk at localhost:1984
-    
+
     # Start all services on only one node
     ideer service use /data/sda as meta device
     ideer service start meta, storage, chunk at localhost:1984
@@ -317,10 +285,10 @@ class ServiceController:
         '$service at $host : $port': 'at',
         'start $services at $host : $port': 'start',
         }
-        
+
         self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
         self.services = self.cm.load('services', OODict())
-    
+
     def use(self, args):
         self.cm.save(args.dev, 'meta_dev')
 
@@ -329,16 +297,16 @@ class ServiceController:
         if s not in ['meta', 'storage', 'chunk']:
             print 'unknown service', s
             return -1
-        
+
         if not args.port.isdigit():
             print 'int port number required '
             return -1
         args.port = int(args.port)
-        
+
         del args['service']
         self.services[s] = (args.host, args.port)
         self.cm.save(self.services, 'services')
-        
+
     def start(self, args):
         server = NIOServer()
         # Remove dup and spaces
@@ -347,16 +315,16 @@ class ServiceController:
         if unknown:
             print 'unknown services', unknown
             return -1
-        
+
         if not args.port.isdigit():
             print 'int port number required '
             return -1
         addr = (args.host, int(args.port))
-        
+
         if 'storage' in ss:
             server.register('storage', StorageService(addr))
             self.services.storage = addr
-        
+
         # Start meta service
         if 'meta' in ss:
             path = self.cm.load('meta_dev')
@@ -365,16 +333,16 @@ class ServiceController:
                 return -1
             if 'storage' not in self.services:
                 print 'where is storage service?'
-                return -1 
+                return -1
             server.register('meta', MetaService(addr, path, self.services.storage))
             self.services.meta = addr
-        
+
         if 'chunk' in ss:
             if 'storage' not in self.services:
                 print 'where is storage service?'
-                return -1  
+                return -1
             server.register('chunk', ChunkService(addr, self.services.storage))
-        
+
         server.bind(addr)
         debug('start server ok')
         server.mainloop()
@@ -395,7 +363,7 @@ cmd_class = sys.argv[1]
 if cmd_class not in command_sets:
     print 'unknown cmd class', cmd_class
     sys.exit(-1)
-    
+
 # Set dispatcher and rules for nlp
 dispatcher = globals()[command_sets[cmd_class]]() # Only get the needed handler
 nlp = NLParser(dispatcher)
