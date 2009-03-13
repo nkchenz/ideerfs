@@ -1,3 +1,75 @@
+Each server, meta, chunk, storage, can be started sperately, regardless of
+booting sequence. They will wait for the nessessary services to start up,
+listen on different addresses. If you want to stop a service, just kill it.
+
+There shall be one config file on each node, where needed infos are saved.
+
+meta_server_address
+storage_manager_address
+meta_dev
+devices
+devices_changed
+
+Meta objects are stored in the memory of master node, and flushed to persisent
+storage meta_dev periodicaly. 
+
+Debug logfile support, filt messages by method name
+
+decentral db:
+
+object store service:
+    search, new, delete object, replicate object
+    storage alloc and manage
+
+    The node which holds the whole lists and locations of all the objects
+    should be reponsible for object replicating.
+
+meta service: transfer name string to object id, use path hash as object id?
+chunk service: provide raw data chunk service
+
+
+create file 'foo/bar':
+        get id of 'foo' from meta service
+        get object of 'foo' from object store
+        if bar exists in this object
+           return false
+        create a new entry in foo object, and save it
+        create a new object for bar
+
+ObjectShard:
+ChunkShard:
+
+Dev:
+    MetaDev
+        load_object
+        store_object
+        delete_object
+        check_point
+
+    ChunkDev
+        get_chunk_list return chunk list of this dev
+        read_chunk      read a chunk
+        write_chunk     write a chunk
+        delete_chunk    delte a chunk
+
+
+service
+    meta_service
+        objectshard
+        journal
+    storage_service
+        replicator
+    chunk_service
+        chunkshard
+
+server
+    nio_server
+        meta_server
+        storage_manager
+        chunk_server
+
+
+
 =object=
 
 class Object(OODict):
@@ -93,8 +165,8 @@ Writable snapshots ("clones") can also be created, resulting in two independent
 R1 <- R2 <- R3 <- R4
 
  A1 <- A2 <- A3 <- A4
-  ^                  ^
-B   C1     <-      C2
+  ^           ^
+B   C1  <-     C2
 
 
 R is the root, which has a dir A, which has dir B, C.  New versions
@@ -128,6 +200,8 @@ modify C1.parent points to A2, which is just the oldest version of its
 parent now. Though we are always trying to not modify object, but here
 the modification of C1.parent seems unavoidable anyway.
 
+let c1.parent alone, which is no use now, just find oldest version of 
+A, that's its new parent
 
 = meta-chunk model =
 This is different from 'everything is a object' model, it's the current implemention.

@@ -72,14 +72,3 @@ class NIOServer(Server):
 
         f.close()
         print 'Bye', addr
-
-if __name__ == '__main__':
-    server = NIOServer()
-    server.register('meta', MetaService('/data/sda'))
-    server.register('chunk', ChunkService('localhost', 1984))
-    server.register('storage', StorageService('localhost', 1984))
-    # Meta service and Storage Service are on the same node
-    #server.services['meta'].storage_pool = server.services['storage']
-    
-    server.bind(('localhost', 1984))
-    server.mainloop()
