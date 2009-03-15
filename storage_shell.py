@@ -1,15 +1,90 @@
 """
-Disk management
-
-Run on local node, send information to storage manager. If you want to online
-a device, you must send all the chunks it has aka chunkreports to the storage
-manager. If you find a invalid device, you need also to inform the storage
-manager.
-
 """
 
-class DevManager(Service):
+from io import *
+from dev import *
+from obj import *
+
+class StorageController:
     """
+    Manage local disks
+    """
+    def __init__(self):
+        # Usage format, symbols beginning with '$' are vars which you can use directly
+        # in the 'args' parameter
+        self.usage_rules = {
+            'format $path size $size type $type': 'format',
+            'online $path': 'online',
+            'offline $path': 'offline',
+            'frozen $path': 'frozen',
+            'remove $path': 'remove',
+            'replace $old_path with $new_path': 'replace',
+            'stat $path': 'stat',
+        }
+
+        self._db = FileDB(config.home)
+        self._devices_file = 'devices'
+        self._devices = self._db.load(self._devices_file)
+
+    def _pre_command(self, cmd, args):
+        # Hook for pre cmd running
+        if cmd not in ['format']: # No need to connect storage service while formatting
+            self._nio = NetWorkIO(config.storage_server_address)
+
+    def format(self, args):
+        # Format new device
+        print 'format ok'
+
+    def online(self, args):
+        self.nio.call('storage.online', path = args.path)
+
+    def offline(self, args):
+        self.nio.call('storage.offline', path = args.path)
+
+    def frozen(self, args):
+        self.nio.call('storage.frozen', path = args.path)
+
+    def remove(self, args):
+        self.nio.call('storage.remove', path = args.path)
+
+    def replace(self, args):
+        self.nio.call('storage.replace', old_path = args.old_path, new_path = args.new_path)
+
+        # First transfer data to other devs automatically, then remove
+
+    def _show_disks(self, cache):
+        for id, dev in cache.items():
+            dev = OODict(dev)
+            if 'host' in dev:
+                host = dev.host
+            else:
+                host = ''
+            print '%s %s/%s %d%% %s %s %s' %(dev.path, byte2size(dev.used), byte2size(dev.size), \
+                dev.used * 100 / dev.size, dev.status, dev.mode, host)
+
+    def stat(self, args):
+        """
+        Show storage status
+
+        stat all       status of the global pool
+        stat local     status of local devs
+        stat /data/sda status of a local dev
+
+        # total_disks, invalid_disks
+        """
+        rv = self.nio.call('chunk.admin_dev', action = 'stat', path = args.path)
+        disks = rv.disks
+        del rv['disks']
+        for k, v in rv.items():
+            print '%s:' % k, v
+        self._show_disks(disks)
+    """Disk management
+
+    Run on local node, send information to storage manager. If you want to online
+    a device, you must send all the chunks it has aka chunkreports to the storage
+    manager. If you find a invalid device, you need also to inform the storage
+    manager.
+
     how to send chunkreport? push or poll? use a independent thread or piggiback
     with heart beat message?
 

@@ -9,17 +9,17 @@ http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/kfs/KosmosFi
 
 from nio import *
 from util import *
-
+import config
 
 class FileSystem:
     
-    def __init__(self, meta, storage):
-        self.nio_meta = NetWorkIO(meta)
-        self.nio_storage = NetWorkIO(storage)
+    def __init__(self):
+        self.nio_meta = NetWorkIO(config.meta_server_address)
+        self.nio_storage = NetWorkIO(config.storage_server_address)
 
     def create(self, file, **attr):
         """Create new files with attrs: replication factor, bs, permission
-        foo.create('/kernel/sched.c', replication_factor = 3, chunk_size = '64m')
+        foo.create('/kernel/sched.c', replica_factor = 3, chunk_size = '64m')
         """
         return self.nio_meta.call('meta.create', file = file, type = 'file', attr = attr)
 
@@ -252,7 +252,7 @@ class File:
             if chunk not in cl:
                 info = OODict()
                 info.version = 0
-                info.locations = self.fs.alloc_chunk(meta.chunk_size, meta.replication_factor)
+                info.locations = self.fs.alloc_chunk(meta.chunk_size, meta.replica_factor)
                 # Add this new chunk to meta node
                 attrs.chunks = {chunk: {}}
                 new = True
@@ -279,6 +279,6 @@ class File:
             
             # Update chunk info and version with storage node, maybe this should 
             # be done by chunk node
-            self.fs.update_chunk_info(meta.id, chunk, info.version, devs, new, meta.replication_factor)
+            self.fs.update_chunk_info(meta.id, chunk, info.version, devs, new, meta.replica_factor)
             
         return bytes

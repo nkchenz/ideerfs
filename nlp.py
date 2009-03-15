@@ -7,15 +7,19 @@ from oodict import OODict
 import sys
 
 class NLParser:
-    def __init__(self, handler = None):
+    """Parse args by rules, and dispatch them to appropriate method of 
+    given handler
+    """
+    
+    def __init__(self):
         self.CHARS = '.*?'
         self.VAR = '(.+?)'
         self.magic_ending = 'mNaLgP1c'
-        self.rules = OODict()
-        self.dispatcher = None
-        if handler:
-            self.dispatcher = handler
-            self.rules =  handler.usage_rules
+        
+    def set_handler(self, handler):
+        """Set default handler"""
+        self.dispatcher = handler
+        self.rules =  handler.usage_rules
 
     def _parse(self, pattern, sentence):
         """
