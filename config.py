@@ -10,8 +10,6 @@ chunk_server_address = ('localhost', 1986)
 home = '~/.ideerfs'
 
 # Where to store the test files?
-root = '~/ideerfs.test'
+root = '/tmp/ideerfs.test'
 # Disk for meta data 
 meta_dev = os.path.join(root, 'disk1')
-
-print locals()

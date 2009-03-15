@@ -37,7 +37,7 @@ class NIOServer(Server):
                 if not req: 
                     break
                 
-                debug('Request:', filter_req(req))
+                debug('Request:', req)
                 
                 service, method = req.method.split('.')
                 r = OODict()
@@ -67,7 +67,7 @@ class NIOServer(Server):
                 if error:
                     r.error = error
                 r._id = req._id # Repsonse has the same id as request
-                debug('Response:', filter_req(r))
+                debug('Response:', r)
                 send_message(f, r) 
 
         f.close()

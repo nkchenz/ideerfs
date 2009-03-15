@@ -36,25 +36,47 @@ class Object(OODict):
 
 class ObjectShard():
     """Read write objects from meta_dev, middle layer between meta service and
-    meta device"""
+    meta device
+    
+    files:
+    seq        current object id
+    objects    all the objects
+    root       root object, every object set should have a root
+    """
 
     def __init__(self):
         self._shard = Dev(config.meta_dev)
-        self._objects = self._shard.load('objects', {})
+        if not self._shard.config:
+            raise IOError('shard %s not formatted' % config.meta_dev)
+
         self._seq_file = 'seq'
+        self._root_file = 'root'
+        self._root = self._shard.load(self._root_file)
         self._seq = self._shard.load(self._seq_file)
+        if not self._root:
+            raise IOError('root file corrupted') # Fatal error
+        if not self._seq:
+            raise IOError('seq file crrupt') # Fatal error
+        #self.store_object(Object('/', self._root, self._root, 'dir'))
+            
+        self._objects = self._shard.load('objects', {})
 
     def get_object_path(self, id):
         """Method to tranfer object id to path on disk"""
-        return os.path.join(self._shard.meta_dir, id2path(id))
+        #return os.path.join(self._shard.meta_dir, id2path(id))
+        pass
+
+    def get_root_object():
+        return self._root
 
     def flush(self):
+        # Check point here
         self._shard.store(self._seq, self._seq_file)
         self._shard.store(self._objects, 'objects')
 
     def create_object(self):
         if self._seq is None:
-            raise 'seq file crrupt' # Fatal error
+            raise IOError('seq file crrupt') # Fatal error
         # Lock
         self._seq += 1
         self.flush()
@@ -89,6 +111,10 @@ class ChunkShard():
     
     Every disk should has a db which holds infos of all the chunks it has.
     So it may be faster when sending chunk report
+    
+    Files:
+    all_chunks          chunks db
+    CHUNK/fid.id        a data chunk 
     
     """
     def __init__(self):

@@ -12,18 +12,23 @@ from util import *
 from io import *
 
 class Dev:
-    def __init__(self, path):
-        self.path = path
-        self._driver = FileDB(path)
-        self._config_file = 'config'
-        self.config = self._driver.load(self._config_file) # Load config file if exists
+    """Device class, auto read 'config' under the root directry"""
     
+    def __init__(self, path):
+        self._path = path
+        self._db = FileDB(path)
+        self._config_file = 'config'
+        self.config = self._db.load(self._config_file) # Load config file if exists
+        
+        self.store = self._db.store
+        self.load = self._db.load
+        
     def flush(self):
-        self._driver.store(self.config, self._config_file)
+        self._db.store(self.config, self._config_file)
 
     def format(self, args):
         """Format new device, generate config file for it"""
-        if not os.path.exists(self.path):
+        if not os.path.exists(self._path):
             return False
         
         # Already formatted 
@@ -51,6 +56,3 @@ class Dev:
         self.flush()
         return True
         
-    store = self._driver.store
-    load = self._driver.load
-

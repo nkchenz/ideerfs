@@ -25,9 +25,14 @@ import os
 import time
 import sys
 
-root = '~/ideerfs.test'
+import config
+
+# Where to store the test files?
+config.root = '/tmp/ideerfs.test'
+# Disk for meta data 
+config.meta_dev = os.path.join(root, 'disk1')
+
 disks = 3
-addr = 'localhost:1984'
 
 seconds_for_update = 10
 

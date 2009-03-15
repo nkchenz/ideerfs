@@ -6,7 +6,7 @@ import os
 
 # Misc functions
 def size2byte(s):
-    """Transfer human readable size number to int byte.
+    """Translate human readable size number to int byte.
     unit is only one of 'k, m, g, t, p'. If it's malformed return None
     """
     if not s:
@@ -29,7 +29,7 @@ def size2byte(s):
     return size * weight[unit]
 
 def byte2size(n):
-    """Transfer size in byte to human readable format"""
+    """Translate size in byte to human readable format"""
     units=['', 'k', 'm', 'g', 't', 'p']
     for i in range(0, len(units)):
         if n < 1024 ** (i+1) or i == len(units):
@@ -62,21 +62,6 @@ def filter_req(req):
         else:
             tmp[k] = v
     return tmp
-
-
-def object_hash(id):
-    return hashlib.sha1(str(id)).hexdigest()
-
-def object_path(id):
-    """Map object id number to storage path, this can be changed to other methods"""
-    hash = object_hash(id)
-    return os.path.join(hash[:3], hash[3:6], hash[6:])
-
-def chunk_path(id, chunk_id, version):
-    return '.'.join([object_path(id), str(chunk_id), str(version)])
-
-def chunk_id(file, chunk_id):
-    return '.'.join([file, str(chunk_id)])
 
 def get_realsize(file):
     """Return the real size of a sparse file"""

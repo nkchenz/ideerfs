@@ -19,29 +19,32 @@ import config
 
 class MetaService(Service):
     """
-    All object except data chunk object are stored on meta dev. There are only 
-    one metadev in the whole system.
+    Filesystem meta interface
 
-
-    create root if needed, object layer know nothing about root
+    translate paths to objects, which are stored in object shard.
     """
 
     def __init__(self):
         self._object_shard =  ObjectShard()
-        
+        self._root = self._object_shard.get_root_object()
+            
     def _isdir(self, obj):
         return obj.type == 'dir'
 
     def _lookup(self, file):
-        """Find a absolute path"""
-        root_id = 1
+        """Find file with a absolute path 
+        
+        @file
+        
+        return object
+        """
         if file == '/':
-            return self._object_shard.load_object(root_id)
+            return self._object_shard.load_object(self._root)
         names = file.split('/')
         names.pop(0) # Remove
         debug('lookup ' + file)
         debug(names)
-        parent_id = root_id
+        parent_id = self._root
         for name in names:
             parent = self._object_shard.load_object(parent_id)
             if not parent or not self._isdir(parent):
@@ -54,17 +57,22 @@ class MetaService(Service):
         return self._object_shard.load_object(id)
         
     def exists(self, req):
-        """Check if a file exists"""
+        """Check if a file exists
+        
+        @file
+        
+        return bool
+        """
         if self._lookup(req.file):
             return True
         else:
             return False
 
     def get(self, req):
-        """
-        Get 'meta' attribute of a file
+        """Get 'meta' attribute of a file
         
-        object id is returned too for convenience
+        @file
+        return meta dict, object id is returned too for convenience
         """
         obj = self._lookup(req.file)
         if not obj:
@@ -76,6 +84,12 @@ class MetaService(Service):
     def set(self, req):
         """
         Set file attributes in 'meta'.
+        
+        @file
+        @attrs
+        
+        return 'ok' if success. If any exception raised, 'error' will 
+                be set in the response message 
         
         'chunks' of a file is kinda meta too, just like 'children' of a dir, we
         do not put them in 'meta' because they are usually too large. Shall we?
@@ -96,6 +110,11 @@ class MetaService(Service):
 
     def lsdir(self, req): 
         """Get all the children names fo a dir
+        
+        @dir
+        
+        return children list
+    
         This should be splitted for large dirs.
         """
         obj = self._lookup(req.dir)
@@ -110,7 +129,14 @@ class MetaService(Service):
         return 1, 'This is payload test'
 
     def create(self, req):
-        """Create a file with given attributes"""
+        """Create a file with given attributes
+        
+        @file
+        @type
+        @attr   optional
+        
+        return object id
+        """
         # Check args: file, type, attr !fixme
         
         # This should be performed to all 'file' arguments
@@ -156,6 +182,12 @@ class MetaService(Service):
         Return infos of chunks in req.chunks, such as version. Need to lookup
         for storage manager to get the location infos. Should we store them
         with meta data? 
+        
+        @file
+        @chunks    chunks list
+        
+        return chunk info dict
+        
         """
         f = self._lookup(req.file)
         if f is None or self._isdir(f):
@@ -201,6 +233,10 @@ class MetaService(Service):
         it to storage manager in next hb message
     
         There shall be a .trash dir to store it first, auto delete 30 days later
+        
+        @file    root can't be deleted
+        
+        return ok
         """
         req.file = os.path.normpath(req.file)
         
@@ -242,7 +278,11 @@ class MetaService(Service):
     
     def rename(self, req):
         """Rename oldfile to newfile
-        oldfile and parent of newfile must exist
+        
+        @old_file   oldfile and parent of newfile must exist
+        @new_file
+        
+        return ok
         """
         req.old_file = os.path.normpath(req.old_file)
         req.new_file = os.path.normpath(req.new_file)
@@ -253,12 +293,14 @@ class MetaService(Service):
         if req.old_file == '/' or req.new_file == '/':
             self._error('attempt to rename root')
 
+        # Get the old parent
         old_parent_name = os.path.dirname(req.old_file)
         old_parent = self._lookup(old_parent_name)
         old_name = os.path.basename(req.old_file)
         if not old_parent or old_name not in old_parent.children:
             self._error('old file not exists')
         
+        # Get the new parent
         new_parent_name = os.path.dirname(req.new_file)
         if old_parent_name == new_parent_name:
             new_parent = old_parent
