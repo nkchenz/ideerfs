@@ -18,7 +18,7 @@ class ChunkService(Service):
     """Service chunks on devices
 
     Device status from config file is checked first.
-    When offlining a disk, how can we know no one is writting on it? write lock?
+    When offlining a disk, how can we know no one is writing on it? write lock?
     """
 
     def __init__(self, addr):
@@ -30,7 +30,7 @@ class ChunkService(Service):
         thread.start_new_thread(self._heartbeat, ())
 
     def _update_devices(self):
-        """It's better to be signaled when changes happened than updating everytime before
+        """It's better to be signaled when changes happened than updating every time before
         each operation"""
         self._devices = self._db.load(self._devices_file)
 
@@ -58,7 +58,7 @@ class ChunkService(Service):
         If req.new = True, means create a new chunk
         # Checksum is based on whole chunk, which means, every time we have to
         # read or write the whole chunk to verify it, a little bit overkill.
-        # Hashlist can be used here, split a chunk to 10 small ones, read n
+        # Hash list can be used here, split a chunk to 10 small ones, read n
         # small chunks which contain the data you want, offset+len
 
         @fid, cid, version, size

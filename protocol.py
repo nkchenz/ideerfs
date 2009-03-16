@@ -1,5 +1,5 @@
 """
-OnWire protocal
+OnWire protocol
 """
 
 import pprint
@@ -28,38 +28,38 @@ def send_message(f, req):
     sent = 0
     total = len(data)
     while True:
-            size = f.send(data[sent: sent + BUFFER_SIZE])
-            sent += size
-            if sent >= total:
-                return True
-    # Let socket.error go to upper layer
+        size = f.send(data[sent: sent + BUFFER_SIZE])
+        sent += size
+        if sent >= total:
+            return True
+# Let socket.error go to upper layer
     #except socket.error, err:
     #    print err
     #    return False # socket error: broken pipe? closed? reset?
 
 def read_message(f):
-        data = f.recv(8)
-        if not data:
-            return None
-        ver, length = unpack('!ii', data)
-        data = f.recv(length)
-        if not data:
-            return None
-        msg = OODict(eval(data))
-        if 'payload_length' not in msg: # Simple message
-            return msg
-        
-        done_len = 0
-        payload = ''
-        while True:
-            data = f.recv(BUFFER_SIZE)
-            done_len += len(data)
-            payload += data
-            if done_len >= msg.payload_length:
-                break
-        
-        msg.payload = payload
-        del msg['payload_length']
+    data = f.recv(8)
+    if not data:
+        return None
+    ver, length = unpack('!ii', data)
+    data = f.recv(length)
+    if not data:
+        return None
+    msg = OODict(eval(data))
+    if 'payload_length' not in msg: # Simple message
         return msg
+    
+    done_len = 0
+    payload = ''
+    while True:
+        data = f.recv(BUFFER_SIZE)
+        done_len += len(data)
+        payload += data
+        if done_len >= msg.payload_length:
+            break
+    
+    msg.payload = payload
+    del msg['payload_length']
+    return msg
 
 

@@ -5,7 +5,7 @@ Network IO server, based on the 'Server' class
 import os
 import sys
 from server import Server
-from protocal import *
+from protocol import *
 from util import *
 from exception import *
 
@@ -33,7 +33,7 @@ class NIOServer(Server):
         while True:
 
                 req = read_message(f)
-                # Let client care about erros, retrans as needed
+                # Let client care about errors, retrans as needed
                 if not req: 
                     break
                 
@@ -43,7 +43,7 @@ class NIOServer(Server):
                 r = OODict()
                 error = ''
                 if service not in self.services:
-                    error = 'unknown serice %s' % service
+                    error = 'unknown service %s' % service
                 else:
                     try:
                         handler = getattr(self.services[service], method)
@@ -66,7 +66,7 @@ class NIOServer(Server):
 
                 if error:
                     r.error = error
-                r._id = req._id # Repsonse has the same id as request
+                r._id = req._id # Response has the same id as request
                 debug('Response:', r)
                 send_message(f, r) 
 

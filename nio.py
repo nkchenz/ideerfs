@@ -5,7 +5,7 @@ Network IO interface, like the RPC
 import os
 import socket
 import time
-from protocal import *
+from protocol import *
 from exception import *
 
 class NetWorkIO:

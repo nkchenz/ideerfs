@@ -72,7 +72,7 @@ class StorageShell:
         return 'ok'
 
     def offline(self, req):
-        """Offline device, data on this device is not avaiable anymore unless
+        """Offline device, data on this device is not available anymore unless
         you online it again. You can decide whether to replicate data first."""
         dev = self._get_device(args.path)
         id = dev.config.id

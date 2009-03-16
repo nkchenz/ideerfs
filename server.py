@@ -74,7 +74,7 @@ class Server:
         signal.signal(signal.SIGINT, self.__cleanup)
 
     def request_handler(self, conn):
-        """Simple echo server, please implement this funtion as your need"""
+        """Simple echo server, please implement this function as your need"""
         f, addr = conn
         print 'Connected from', addr
         while True:

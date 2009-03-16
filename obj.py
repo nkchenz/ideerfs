@@ -38,7 +38,7 @@ class ObjectShard():
     """Read write objects from meta_dev, middle layer between meta service and
     meta device
     
-    files:
+    Files:
     seq        current object id
     objects    all the objects
     root       root object, every object set should have a root
@@ -60,7 +60,7 @@ class ObjectShard():
         if not self._root:
             raise IOError('root file corrupted') # Fatal error
         if not self._seq:
-            raise IOError('seq file crrupt') # Fatal error
+            raise IOError('seq file corrupted') # Fatal error
         #self.store_object(Object('/', self._root, self._root, 'dir'))
             
         self._objects = self._shard.load(self._objects_file, {})
@@ -78,7 +78,7 @@ class ObjectShard():
         self.flush()
 
     def get_object_path(self, id):
-        """Method to tranfer object id to path on disk"""
+        """Method to transfer object id to path on disk"""
         #return os.path.join(self._shard.meta_dir, id2path(id))
         pass
 
@@ -92,7 +92,7 @@ class ObjectShard():
 
     def create_object(self):
         if self._seq is None:
-            raise IOError('seq file crrupt') # Fatal error
+            raise IOError('seq file corrupted') # Fatal error
         # Lock
         self._seq += 1
         self.flush()
@@ -214,7 +214,7 @@ class ChunkShard():
         file = self._get_chunk_filepath(chunk, dev)
         # Get chunk data
         if new:
-            chunk.psize = 0 # Orignal physical size
+            chunk.psize = 0 # Original physical size
             chunk.data = zeros(chunk.size)
             open(file, 'w').close() # Create new file 
         else:
@@ -242,7 +242,7 @@ class ChunkShard():
         if not new:
             new_file = self._get_chunk_filepath(chunk, dev)
             os.rename(file, new_file)
-            # Delete old verion entry, chunk is no use anymore, just minus 1
+            # Delete old version entry, chunk is no use anymore, just minus 1
             # to get old chunk
             chunk.version -= 1
             self._delete_chunk_entry(chunk, dev)
@@ -267,7 +267,7 @@ class ChunkShard():
 
     def get_chunk_path(self, chunk, dev):
         # Because different chunks of same object may exists on same device, chunk
-        # file name must based on both object_id and chunk_id. If multicopies of a 
+        # file name must based on both object_id and chunk_id. If multi copies of a 
         # chunk are allowed to exist on same device too, there shall be something to
         # differentiate them.
         return '%s/CHUNKS/%d.%d.%d' % (dev.config.path, chunk.fid, chunk.cid, chunk.version) 

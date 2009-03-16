@@ -1,8 +1,8 @@
 """
 Meta service
 
-meta should be kept in memory using a special data structure such as a B+
-tree, with journal on persistent storage, and periodicly flush and checkpoint.
+Meta should be kept in memory using a special data structure such as a B+
+tree, with journal on persistent storage, and periodically flush and checkpoint.
 
 Big data chunks are stored to disks directly.
 
@@ -21,7 +21,7 @@ class MetaService(Service):
     """
     Filesystem meta interface
 
-    translate paths to objects, which are stored in object shard.
+    Translate paths to objects, which are stored in object shard.
     """
 
     def __init__(self):
@@ -99,7 +99,7 @@ class MetaService(Service):
         if not obj:
             self._error('no such file or directory')
         for k,v in req.attrs.items():
-            # You may want to validiate attr k here
+            # You may want to validate attr k here
             if k == 'chunks':
                 for chunk_id, info in v.items():
                     obj.chunks[chunk_id] = info

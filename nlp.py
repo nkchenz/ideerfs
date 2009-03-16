@@ -23,9 +23,9 @@ class NLParser:
 
     def _parse(self, pattern, sentence):
         """
-        patterns are like 'create $type on $dev of $host', items must be seperated
+        patterns are like 'create $type on $dev of $host', items must be separated
         with space. Words with leading $ are vars. The other literal words in pattern
-        act as grammer sugar and seperaters of var.
+        act as grammar sugar and separators of var.
                 
 
         Return OODict, you can use something like
@@ -38,7 +38,7 @@ class NLParser:
         values = OODict()
         vars = []
         regex = ''
-        last_is_var = False # If two vars are consecutive, we need to use one space to seperate them 
+        last_is_var = False # If two vars are consecutive, we need to use one space to separate them 
         for item in pattern.split():
             if item[0] == '$':
                 if last_is_var:

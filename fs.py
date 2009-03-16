@@ -154,7 +154,7 @@ class File:
         self.fs = fs
         self.client_read_buffer = '' # Client buffer
         # This buffer better be localfile, if only in mem we'll lost it when crashing
-        # No need, if client crashs, we'd better let user know
+        # No need, if client crashes, we'd better let user know
         self.client_write_buffer = ''
         
         # If we get file meta here, what shall we do if meta changes in other threads?
@@ -264,7 +264,7 @@ class File:
             
             info.version += 1
             info.size = meta.chunk_size
-            offset_in_chunk = (offset + w_start) % meta.chunk_size # Real offset in chunk where to start writting
+            offset_in_chunk = (offset + w_start) % meta.chunk_size # Real offset in chunk where to start writing
             devs = self.fs.write_chunk(meta.id, chunk, info, offset_in_chunk, data[w_start: w_end])
             
             if not devs:
