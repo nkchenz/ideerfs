@@ -43,8 +43,8 @@ def byte2size(n):
 def zeros(n):
     return '\0' * n
 
-def log(s):
-    print str(s)
+def log(*vars):
+    debug(vars)
     
 def debug(*vars):
     for var in vars:

@@ -12,10 +12,10 @@ import fs_shell
 import job_shell
 import storage_shell
 
-subcmds = {
-'storage': storage_shell.StorageController,
+controller = {
+'storage': storage_shell.StorageShell,
 'fs': fs_shell.FSShell,
-'job': job_shell.JobController,
+'job': job_shell.JobShell,
 }
 
 if len(sys.argv) <= 1 or sys.argv[1] == 'help':
@@ -23,15 +23,15 @@ if len(sys.argv) <= 1 or sys.argv[1] == 'help':
     sys.exit(-1)
 
 cmd = sys.argv[1]
-if cmd not in subcmds:
-    print 'unknown sub cmd', cmd
+if cmd not in controller:
+    print 'unknown cmd', cmd
     sys.exit(-1)
 
 # Set dispatcher and rules for nlp
 nlp = NLParser()
-nlp.set_handler(subcmds[cmd]())
+nlp.set_handler(controller[cmd]())
 input = ' '.join(sys.argv[2:])
 try:
     nlp.parse(input)
 except IOError, err:
-    print err.message
+    print err

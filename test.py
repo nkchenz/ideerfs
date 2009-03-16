@@ -32,12 +32,12 @@ config.root = '/tmp/ideerfs.test'
 # Disk for meta data 
 config.meta_dev = os.path.join(root, 'disk1')
 
-disks = 3
+disks = 10 
 
 seconds_for_update = 10
 
 meta_dev = os.path.join(root, 'disk-meta')
-chunk_devs = [os.path.join(root, 'disk-' + str(x)) for x in range(disks)]
+chunk_devs = [os.path.join(root, 'sd' + str(x)) for x in range(disks)]
 
 def run(cmd):
     print '$', cmd

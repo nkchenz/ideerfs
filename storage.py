@@ -1,6 +1,7 @@
 """
 Storage service: manage and allocate storage
 """
+
 import time
 import hashlib
 import random
@@ -15,18 +16,17 @@ from io import *
 import config
 
 class StorageService(Service):
-    """
-    Receive chunk infos from chunk server at startup
-On startup, the Namenode enters a special state called Safemode. Replication of data blocks
-does not occur when the Namenode is in the Safemode state. The Namenode receives
-Heartbeat and Blockreport messages from the Datanodes. A Blockreport contains the list of
-data blocks that a Datanode is hosting. Each block has a specified minimum number of
-replicas. A block is considered safely replicated when the minimum number of replicas of
-that data block has checked in with the Namenode. After a configurable percentage of safely
-replicated data blocks checks in with the Namenode (plus an additional 30 seconds), the
-Namenode exits the Safemode state. It then determines the list of data blocks (if any) that
-still have fewer than the specified number of replicas. The Namenode then replicates these
-blocks to other Datanodes.
+    """Receive chunk infos from chunk server at startup
+    On startup, the Namenode enters a special state called Safemode. Replication of data blocks
+    does not occur when the Namenode is in the Safemode state. The Namenode receives
+    Heartbeat and Blockreport messages from the Datanodes. A Blockreport contains the list of
+    data blocks that a Datanode is hosting. Each block has a specified minimum number of
+    replicas. A block is considered safely replicated when the minimum number of replicas of
+    that data block has checked in with the Namenode. After a configurable percentage of safely
+    replicated data blocks checks in with the Namenode (plus an additional 30 seconds), the
+    Namenode exits the Safemode state. It then determines the list of data blocks (if any) that
+    still have fewer than the specified number of replicas. The Namenode then replicates these
+    blocks to other Datanodes.
     """
     
     def __init__(self, addr):
@@ -50,7 +50,7 @@ blocks to other Datanodes.
         self._driver.store(self.chunks, self.chunks_file)
         
     def _writeable(self, id):
-        return self.cache[id].mode != 'frozen' 
+        return self._avaiable(id) and self.cache[id].mode != 'frozen' 
 
     def _avaiable(self, id):
         if id not in self.cache:
@@ -85,7 +85,7 @@ blocks to other Datanodes.
                 rv[dev] = self._get_dev_addr(dev)
                 if len(rv) >= req.n:
                     break
-        debug(rv)           
+        debug(rv)
         
         if not rv:
             self._error('no dev avaiable') # Find nothing, this should not happen
@@ -203,24 +203,6 @@ blocks to other Datanodes.
     def stat(self, req):
         return {'disks': self.cache, 'chunks': len(self.chunks) }
     
-    
-    
-    """Disk management
-
-    Run on local node, send information to storage manager. If you want to online
-    a device, you must send all the chunks it has aka chunkreports to the storage
-    manager. If you find a invalid device, you need also to inform the storage
-    manager.
-
-    how to send chunkreport? push or poll? use a independent thread or piggiback
-    with heart beat message?
-
-    Maybe ideer.py shall contact with storage manager directly, chunk serivce only
-    provides read, write, replicate, delete, report operations etc, it's a clear design.
-
-    The diffcult is when allocating a new chunk, how to deal with device used size,
-    we have no idea about the real size of a sparse chunk file
-    """
 
     def __init__(self, storage_addr):
         self._storage_service_addr = storage_addr
@@ -240,16 +222,6 @@ blocks to other Datanodes.
             self.cache[k] = v
             if v.status == 'online':
                 thread.start_new_thread(self.scan_chunks, (v,))
-
-    def send_chunk_report():
-            chunks_report = {}
-            for id in need_send_report:
-                chunks_report[id] = self.devices.chunks[id]
-                del self.devices.chunks[id]
-
-            rc = nio.call('storage.hb', addr = self._addr, changed_devs = changed_devs, \
-                chunks_report = chunks_report)
-
 
     
     def scan_chunks(self, dev):
@@ -318,15 +290,6 @@ blocks to other Datanodes.
         # Notify stroage manager dev offline
         return 'ok'
 
-    def remove(self, req):
-        dev = self._get_dev(req.path) # Get dev from path
-        id = dev.config.id
-        if id not in self.cache:
-            self._error('not in cache')
-        del self.cache[id]
-        self._flush(id)
-        return 'ok'
-
     def frozen(self, req):
         dev = self._get_dev(req.path)
         id = dev.config.id
@@ -337,7 +300,7 @@ blocks to other Datanodes.
         self._flush(id)
         return 'ok'
 
-    def stat(self, req):
+    def status(self, req):
         for k, v in self.cache.items():
             if v['path'] == req.path:
                 return {'disks': {k: v}}

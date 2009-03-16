@@ -1,6 +1,9 @@
 """IO layer"""
 
 import os
+from pprint import pformat
+
+from oodict import OODict
 
 class FileDB:
     """File store layer"""
@@ -14,7 +17,7 @@ class FileDB:
         file = os.path.join(self._root, file)
         if not os.path.exists(file):
             return default
-        content = open(f, 'r').read()
+        content = open(file, 'r').read()
         if not content: # Empty file
             return default
         result = eval(content)

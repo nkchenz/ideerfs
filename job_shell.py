@@ -2,7 +2,7 @@
 Job shell
 """
 
-class JobController:
+class JobShell:
     def __init__(self):
         self.usage_rules = {}
     #-------------------------------MapReduce-------------------------------

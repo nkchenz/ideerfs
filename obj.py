@@ -45,12 +45,16 @@ class ObjectShard():
     """
 
     def __init__(self):
-        self._shard = Dev(config.meta_dev)
-        if not self._shard.config:
-            raise IOError('shard %s not formatted' % config.meta_dev)
-
         self._seq_file = 'seq'
         self._root_file = 'root'
+        self._objects_file = 'objects'
+
+    def load(self, path):
+        """Load object shard from device"""
+        self._shard = Dev(path)
+        if not self._shard.config:
+            raise IOError('%s not formatted' % path)
+
         self._root = self._shard.load(self._root_file)
         self._seq = self._shard.load(self._seq_file)
         if not self._root:
@@ -59,7 +63,19 @@ class ObjectShard():
             raise IOError('seq file crrupt') # Fatal error
         #self.store_object(Object('/', self._root, self._root, 'dir'))
             
-        self._objects = self._shard.load('objects', {})
+        self._objects = self._shard.load(self._objects_file, {})
+
+    def create_root_object(self, path):
+        """Create root object"""
+        self._shard = Dev(path)
+        if not self._shard.config:
+            raise IOError('%s not formatted' % path)
+        self._seq = 0
+        self._objects = {}
+        self._root = self.create_object()
+        self.store_object(Object('/', self._root, self._root, 'dir'))
+        self._shard.store(self._root, self._root_file)
+        self.flush()
 
     def get_object_path(self, id):
         """Method to tranfer object id to path on disk"""
@@ -98,10 +114,8 @@ class ObjectShard():
         self.flush()
         return True
 
-
 class Chunk(OODict):
     pass
-
 
 CHUNK_HEADER_SIZE = 1024
 
@@ -113,15 +127,45 @@ class ChunkShard():
     So it may be faster when sending chunk report
     
     Files:
-    all_chunks          chunks db
-    CHUNK/fid.id        a data chunk 
+    chunks          chunks db
+    CHUNK/fid.id.version        a data chunk 
     
     """
     def __init__(self):
-        pass
+        self._chunks_file = 'chunks'
+        self._chunks = {}
+
+    def _load_chunk_db(self, dev):
+        did = dev.config.id
+        if did not in self.chunks:
+            self.chunks[did] = dev.load(self._chunks_file)
+
+    def _insert_chunk_entry(self, chunk, dev):
+        """Add one entry for new chunk"""
+        # Lockme
+        self._load_chunk_db(dev)
+        tmp = chunk.fid, chunk.cid, chunk.verion
+        if tmp not in self.chunks[did]:
+            self.chunks[did].append(tmp)
+
+    def _delete_chunk_entry(self, chunk, dev):
+        """Add one entry for new chunk"""
+        # Lockme
+        self._load_chunk_db(dev)
+        tmp = chunk.fid, chunk.cid, chunk.verion
+        if tmp in self.chunks[did]:
+            self.chunks[did].remove(tmp)
+
+    def _flush_chunk_db(self, dev):
+        dev.store(self.chunks[dev.config.id], self._chunks_file)
 
     def load_chunk(self, chunk, dev):
-        """Read chunk data"""
+        """Read chunk data from device
+        @fid
+        @cid
+        @version
+        @dev
+        """
         file = self.get_chunk_path(chunk, dev)
         if not os.path.isfile(file):
             raise IOError('chunk lost or stale')
@@ -159,11 +203,13 @@ class ChunkShard():
         chunk.checksum = hashlib.sha1(tmp).hexdigest()
 
     def store_chunk(self, chunk, offset, data, dev, new = False):
-        """Store data from offset in chunk
-        save data
-        save checksum
-        update version
-        update dev.used
+        """Store data to offset of chunk
+
+        @chunk              chunk info: fid, cid, version, size
+        @offset
+        @data
+        @dev
+        @new                Is this a new chunk?
         """
         file = self._get_chunk_filepath(chunk, dev)
         # Get chunk data
@@ -190,10 +236,17 @@ class ChunkShard():
         # Write header back
         self._write_chunk_header(file, chunk)
 
+        # Add chunk entry
+        self._insert_chunk_entry(chunk, dev)
         # Rename if needed
         if not new:
             new_file = self._get_chunk_filepath(chunk, dev)
             os.rename(file, new_file)
+            # Delete old verion entry, chunk is no use anymore, just minus 1
+            # to get old chunk
+            chunk.version -= 1
+            self._delete_chunk_entry(chunk, dev)
+        self._flush_chunk_db(dev)
 
         # Update dev.used
         dev.config.used += chunk.psize - old_psize
@@ -217,23 +270,26 @@ class ChunkShard():
         # file name must based on both object_id and chunk_id. If multicopies of a 
         # chunk are allowed to exist on same device too, there shall be something to
         # differentiate them.
-        return '%s/CHUNKS/%d.%d.%d' % (dev.config.path, chunk.fid, chunk.id, chunk.version) 
- 
+        return '%s/CHUNKS/%d.%d.%d' % (dev.config.path, chunk.fid, chunk.cid, chunk.version) 
 
-    def delete_chunk(self, id, chunk):
-        if id not in self.devices.cache:
-            return
-        dev = self.devices.cache[id]
-        chf = os.path.join(dev.path, 'OBJECTS', self._hash2path(chunk))
-        debug('delete chunk %s on %s' % (chunk, id))
-        debug(dev.used)
-        # Safe delete
-        try:
-            dev.used -= get_file_real_size(chf)
-            self.devices._flush(dev.id)
+    def delete_chunks(self, chunks, dev):
+        """Delete chunk"""
+        for chunk in chunks:
+            file = self.get_chunk_path(chunk, dev)
+            if not os.path.exists(file):
+                continue
+            # Safe delete
+            try:
+                dev.config.used -= get_psize(f)
+                os.remove(file)
+            except OSError:
+                pass
 
-            os.remove(chf)
-        except OSError:
-            pass
-        debug(dev.used)
+            # Delete chunk entry
+            # Lockme
+            self._delete_chunk_entry(chunk, dev)
+
+        # Save change to disk
+        self._flush_chunk_db(dev)
+        dev.flush()
 

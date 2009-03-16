@@ -29,24 +29,23 @@ class Dev:
     def format(self, args):
         """Format new device, generate config file for it"""
         if not os.path.exists(self._path):
-            return False
-        
+            raise IOError('not exists')
         # Already formatted 
         if self.config:
-            return False
+            raise IOError('already formatted')
 
         # Check size and type
-        size = size2int(args.size)
+        size = size2byte(args.size)
         if size is None:
-            return False
+            raise IOError('wrong size ')
         args.size = size
         # raid, mirror, file, log, disk
         types = ['meta', 'chunk']
         if args.type not in types:
-            return False
+            raise IOError('wrong type ')
 
         args.used = 0
-        args.status = ''
+        args.status = 'offline'
         args.mode = ''
         # It's difficult to get a same id again
         str = '%s %s %s' % (time.time(), socket.gethostname(), args.path)

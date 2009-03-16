@@ -26,6 +26,7 @@ class MetaService(Service):
 
     def __init__(self):
         self._object_shard =  ObjectShard()
+        self._object_shard.load(config.meta_dev)
         self._root = self._object_shard.get_root_object()
             
     def _isdir(self, obj):
