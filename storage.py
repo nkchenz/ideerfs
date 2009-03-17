@@ -16,7 +16,26 @@ from io import *
 import config
 
 class StorageService(Service):
-    """Receive chunk infos from chunk server at startup
+    """Storage management for chunk store
+    disks manager:
+    online
+    offline
+    frozen
+    status
+
+    storage allocator:
+    alloc       add one entry in chunks db, if anything fails, remember to free please
+    free        
+
+    chunk locator:
+    search
+
+    heartbeat service:
+    hb
+    
+    replicator:
+    replicate chunk?
+
     On startup, the Namenode enters a special state called Safemode. Replication of data blocks
     does not occur when the Namenode is in the Safemode state. The Namenode receives
     Heartbeat and Blockreport messages from the Datanodes. A Blockreport contains the list of
@@ -31,42 +50,50 @@ class StorageService(Service):
     
     def __init__(self, addr):
         self._addr = config.storage_manager_address
+        self._nodes = {} # Nodes Alive
+        self._deleted = defaultdict(list) # Deleted chunks
+        self._chunks_map = defaultdict(dict) # Location db for chunks
+        self._db = FileDB(config.home)
         
-        self.cache = OODict()
-        self.nodes = {}
-        self.deleted = defaultdict(list)
-        
-        # Get all chunks in the whole file system, how to delete chunk?
-        self._driver = FileDB(os.path.expanduser('~/.ideerfs/'))
+        # Get all chunks in the whole file system
         # all_chunks stored all alive chunks in the entire system, it's critical important
-        
-        debug('loading chunks...')
-        self.chunks_file = 'all_chunks'
-        self.chunks = self._driver.load(self.chunks_file, OODict())
-        self.chunks_map = defaultdict(set)
-        debug('done')
+        log('Loading chunks')
+        self._chunks_file = 'all_chunks'
+        self._chunks = self._db.load(self._chunks_file, OODict())
+
+        log('Loading devices')
+        self._devices_file = 'all_devices'
+        self._devices = self._db.load(self._devices_file, OODict())
         
     def _flush_chunks(self):
-        self._driver.store(self.chunks, self.chunks_file)
+        self._db.store(self.chunks, self.chunks_file)
         
-    def _writeable(self, id):
-        return self._avaiable(id) and self.cache[id].mode != 'frozen' 
+    def _writeable(self, did):
+        """Check if a device is writeable"""
+        return self._available(id) and self.cache[id].mode != 'frozen' 
 
-    def _avaiable(self, id):
+    def _available(self, did):
+        """Check if a device is available"""
         if id not in self.cache:
             return False
         dev = self.cache[id]
         return self._is_alive(dev.host) and dev.status == 'online'
 
     def _is_alive(self, host):
-        """newer than 120 seconds"""
+        """Check if a host is alive. If we haven't heard of it more than 120
+        seconds, then we consider it as dead.
+        
+        We may use hostid aka hid here.        
+        """
         return host in self.nodes and time.time() - self.nodes[host].update_time < 120 
     
-    def _free_enough(self, id, size):
+    def _free_enough(self, did, size):
+        """Check if a device has larger space than size bytes"""
         dev = self.cache[id]
         return dev.size - dev.used > size
     
-    def _get_dev_addr(self, id):
+    def _get_dev_addr(self, did):
+        """Locate device address"""
         dev = self.cache[id]
         return self.nodes[dev.host].addr
     
@@ -158,9 +185,11 @@ class StorageService(Service):
             
         return 'ok'
 
-
     def heartbeat(self, req):
-        # Update nodes healthy
+        """Update nodes healthy
+        update dev.used
+        send deleted chunks back
+        """
         host, _ = req.addr
         if host not in self.nodes:
             self.nodes[host] = OODict({'devs': set([])})
@@ -199,53 +228,6 @@ class StorageService(Service):
 
         return {'deleted_chunks': dict(deleted)}
 
-
-    def stat(self, req):
-        return {'disks': self.cache, 'chunks': len(self.chunks) }
-    
-
-    def __init__(self, storage_addr):
-        self._storage_service_addr = storage_addr
-
-        self.cache_file = 'exported_devices'
-        self.cm = ConfigManager(os.path.expanduser('~/.ideerfs/'))
-        self.cache = self.cm.load(self.cache_file, OODict())
-
-        self.chunks = {}
-        self.changed = set()
-        self.need_send_report = set()
-
-        # If you use a[k] access a dict item, it's converted to OODict automatically
-        # For later convenience
-        for k, v in self.cache.items():
-            v = OODict(v)
-            self.cache[k] = v
-            if v.status == 'online':
-                thread.start_new_thread(self.scan_chunks, (v,))
-
-    
-    def scan_chunks(self, dev):
-        debug('scanning chunks', dev.path)
-        self.chunks[dev.id] = self.get_chunks_list(dev.path)
-        self.changed.add(dev.id)
-        self.need_send_report.add(dev.id)
-
-    def get_chunks_list(self, path):
-        """Get all the chunks of a device"""
-        root = os.path.join(path, 'OBJECTS')
-        chunks = []
-        for n1 in os.listdir(root):
-            l1 = os.path.join(root, n1)
-            for n2 in os.listdir(l1):
-                l2 = os.path.join(l1, n2)
-                chunks.append(map(lambda f: n1 + n2 +f, os.listdir(l2)))
-        return reduce(lambda x, y : x +y, chunks, [])
-
-    def _flush(self, id):
-        """Flush the changes of dev indicated by id"""
-        self.changed.add(id)
-        self.cm.save(self.cache, self.cache_file)
-
     def _get_dev(self, path):
         """Return a dev object, but check status first"""
         dev = Dev(path)
@@ -257,8 +239,12 @@ class StorageService(Service):
         return dev
 
     def online(self, req):
-        """Update dev status in devices cache to 'online', notice that we do not
-        update the config file on disk"""
+        """Online device
+
+        @conf       device config
+        @addr       chunk server address
+        @report     chunk report
+        """
         dev = self._get_dev(req.path) # Get dev from path
         id = dev.config.id
         if id not in self.cache:
@@ -275,7 +261,9 @@ class StorageService(Service):
         return 'ok'
 
     def offline(self, req):
-        """Update dev status in devices cache to 'offline'
+        """Offline device
+        @did               device id
+        @replicate         bool, whether to replicate
         """
         dev = self._get_dev(req.path) # Get dev from path
         id = dev.config.id
@@ -291,6 +279,9 @@ class StorageService(Service):
         return 'ok'
 
     def frozen(self, req):
+        """Frozen device
+        @did
+        """
         dev = self._get_dev(req.path)
         id = dev.config.id
         if id not in self.cache:
@@ -301,11 +292,8 @@ class StorageService(Service):
         return 'ok'
 
     def status(self, req):
-        for k, v in self.cache.items():
-            if v['path'] == req.path:
-                return {'disks': {k: v}}
-
-        self._error('no such dev')
+        """Get status of the storage system"""
+        return {'disks': self.cache, 'chunks': len(self.chunks) }
         # Iterate dev cache to get realtime stat here, disk stat is carried with
         # chunk server's heart-beat message
         #return  {'summary': self.statistics, 'disks': self.cache}

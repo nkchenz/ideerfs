@@ -65,7 +65,7 @@ class StorageShell:
             self._devices[id] = dev.config.path # Add entry
         if dev.config.status != 'offline':
             raise IOError('not offline')
-        self._nio.call('storage.online', dconf = dev.conf, addr = config.chunk_server_address, reports = self.get_chunks(dev))
+        self._nio.call('storage.online', conf = dev.conf, addr = config.chunk_server_address, report = self.get_chunks(dev))
         dev.config.status = 'online'
         dev.flush()
         self._flush()
@@ -80,7 +80,7 @@ class StorageShell:
             raise IOError('not found')
         if dev.config.status != 'online':
             raise IOError('not online')
-        self._nio.call('storage.offline', id = id, replicate = False)
+        self._nio.call('storage.offline', did = id, replicate = False)
         dev.config.status = 'offline'
         dev.flush()
         return 'ok'
@@ -93,7 +93,7 @@ class StorageShell:
             raise IOError('not found')
         if dev.config.status != 'online':
             raise IOError('not online')
-        self._nio.call('storage.frozen', id = id)
+        self._nio.call('storage.frozen', did = id)
         dev.config.mode = 'frozen'
         dev.flush()
         return 'ok'
