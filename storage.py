@@ -3,7 +3,6 @@ Storage service: manage and allocate storage
 """
 
 import time
-import hashlib
 import random
 from collections import defaultdict
 
@@ -50,23 +49,30 @@ class StorageService(Service):
     
     def __init__(self, addr):
         self._addr = config.storage_manager_address
-        self._nodes = {} # Nodes Alive
-        self._deleted = defaultdict(list) # Deleted chunks
-        self._chunks_map = defaultdict(dict) # Location db for chunks
         self._db = FileDB(config.home)
         
-        # Get all chunks in the whole file system
-        # all_chunks stored all alive chunks in the entire system, it's critical important
-        log('Loading chunks')
-        self._chunks_file = 'all_chunks'
-        self._chunks = self._db.load(self._chunks_file, OODict())
+        self._deleted_chunks = defaultdict(list) # Deleted chunks
+        self._nodes = {} # Nodes Alive
 
         log('Loading devices')
-        self._devices_file = 'all_devices'
-        self._devices = self._db.load(self._devices_file, OODict())
+        self._devices_file = 'all_devices' # Device config and address
+        self._devices = self._db.load(self._devices_file, defaultdict(dict))
         
-    def _flush_chunks(self):
-        self._db.store(self.chunks, self.chunks_file)
+        # Get all chunks in the whole file system
+        # all_chunks holds all alive chunks in the entire system, it's critical important
+        log('Loading chunks')
+        self._chunks_file = 'all_chunks'
+        self._chunks = self._db.load(self._chunks_file, [])
+
+        log('Loading chunks location cache')
+        self._chunks_map_file = 'chunks_map'
+        self._chunks_map = self._db.load(self._chunks_map_file, defaultdict(list))
+
+    def _flush(self):
+        # This is quite heavy
+        self._db.store(self._chunks, self._chunks_file)
+        self._db.store(self._devices, self._devices_file)
+        self._db.store(self._chunks_map, self._chunks_map_file)
         
     def _writeable(self, did):
         """Check if a device is writeable"""
@@ -74,10 +80,9 @@ class StorageService(Service):
 
     def _available(self, did):
         """Check if a device is available"""
-        if id not in self.cache:
+        if did not in self._devices:
             return False
-        dev = self.cache[id]
-        return self._is_alive(dev.host) and dev.status == 'online'
+        return self._is_alive(self._devices[did].addr)
 
     def _is_alive(self, host):
         """Check if a host is alive. If we haven't heard of it more than 120
@@ -97,7 +102,7 @@ class StorageService(Service):
         dev = self.cache[id]
         return self.nodes[dev.host].addr
     
-    def malloc(self, req):
+    def alloc(self, req):
         """
         return n devices each having free space larger than size bytes
         """
@@ -159,84 +164,36 @@ class StorageService(Service):
         self._flush_chunks()
         return 'ok'
         
-    def update(self, req):
-        """Found object in devs, after writting, update chunk info"""
-        chunk = chunk_id(object_hash(req.object_id), req.chunk_id)
-        if chunk not in self.chunks:
-            if req.new:
-                self.chunks[chunk] = {'v': req.version, 'rf': req.rf}
-                self.chunks_map[chunk] = set(req.devs)
-                self._flush_chunks()
-                return 'ok'
-            else:
-                self._error('unknown chunk')
-        
-        if req.new:
-            self._error('chunk exists, cant be new')
-                
-        v = self.chunks[chunk]['v']
-        if req.version < v:
-            self._error('stale chunk')
-        if req.version > v:
-            self.chunks[chunk]['v'] = req.version
-            self.chunks_map[chunk] = set(req.devs)
-        else:
-            self.chunks_map[chunk].union(set(req.devs))
-            
-        return 'ok'
+
+    def _update_host(self, host, did = None):
+        """Update host aliveness, add device if given"""
+        if host not in self._nodes:
+            self._nodes[host] = OODict({'devs': set()})
+        self._nodes[host].update_time = time.time()
+        if did:
+            self._nodes[host].devs.add(did)
 
     def heartbeat(self, req):
         """Update nodes healthy
         update dev.used
         send deleted chunks back
+        @addr
+        @confs      configs of changed devices
         """
-        host, _ = req.addr
-        if host not in self.nodes:
-            self.nodes[host] = OODict({'devs': set([])})
-        self.nodes[host].addr = req.addr
-        self.nodes[host].update_time = time.time()
+        self._update_host(req.addr)
             
         # Update changed devs
-        for id, dev in req.changed_devs.items(): # dev here is a dict
-            if not dev and id in self.cache: # Removed
-                del self.cache[id]
-                if id in self.nodes[host].devs:
-                    self.nodes[host].devs.remove(id)
-            else:
-                dev['host'] = host # Remember the host it came from
-                self.cache[id] = OODict(dev)
-                self.nodes[host].devs.add(id)
-        
-        # Update chunk locations
-        deleted = defaultdict(list)
-        for dev, chunks in req.chunks_report.items(): # dev here is actually dev_id
-            for chunk in chunks:
-                id, version = chunk.rsplit('.', 1)
-                version = int(version)
-                if id not in self.chunks or version != self.chunks[id]['v']:
-                    # Deleted? Stale?
-                    deleted[dev].append(chunk)
-                else:
-                    # Even if version > self.chunks[id]['v'], we honor the latter
-                    self.chunks_map[id].add(dev)
-
+        for did, conf in req.confs.items():
+            self._devices[did] = conf
+           
         # See if there are chunks deleted by meta node
-        for dev in self.nodes[host].devs:
-            if dev in self.deleted:
-                deleted[dev] += self.deleted[dev]
-                del self.deleted[dev]
+        deleted = defaultdict(list)
+        for did in self.nodes[req.addr].devs:
+            if did in self._deleted_chunks:
+                deleted[did] += self._deleted_chunks[did]
+                del self._deleted_chunks[did]
 
         return {'deleted_chunks': dict(deleted)}
-
-    def _get_dev(self, path):
-        """Return a dev object, but check status first"""
-        dev = Dev(path)
-        if not dev.config:
-            self._error('not formatted')
-
-        if dev.config.data_type != 'chunk':
-            self._error('wrong data type')
-        return dev
 
     def online(self, req):
         """Online device
@@ -245,55 +202,72 @@ class StorageService(Service):
         @addr       chunk server address
         @report     chunk report
         """
-        dev = self._get_dev(req.path) # Get dev from path
-        id = dev.config.id
-        if id not in self.cache:
-            self.cache[id] = dev.config # Add entry
-        else:
-            if self.cache[id].status != 'offline':
-                self._error('not offline')
+        did = req.conf.id
+        if did in self._devices:
+            self._error('already online')
+        self._device[did].conf = req.conf
+        self._devices[did].addr = req.addr
 
-        self.cache[id].status = 'online'
-        self._flush(id)
+        for chunk in req.report:
+            # Add to chunks db. 
+            # If chunk has been deleted,  too old or too new, we mark it
+            # as stale and tell the chunk server to delete it later.
+            if chunk not in self._chunks:
+                self._deleted_chunks[did].append(chunk)
+            else:
+                # Save location info
+                self._chunks_map[chunk].append(did)
 
-        # Start another thread to scan all the chunks the new device holds
-        thread.start_new_thread(self.scan_chunks, (dev.config,))
+        self._update_host(req.addr, did)
+        log('Device %s online' % req.did)
+        # Flush
+        self._flush()
         return 'ok'
 
     def offline(self, req):
         """Offline device
+
         @did               device id
         @replicate         bool, whether to replicate
         """
-        dev = self._get_dev(req.path) # Get dev from path
-        id = dev.config.id
-        if id not in self.cache:
-            self._error('not in cache')
-
-        if self.cache[id].status != 'online':
+        if req.did not in self._devices:
             self._error('not online')
+    
+        # Delete device
+        addr = self._devices[req.did].addr
+        del self._devices[req.did]
+        
+        # Remove this device from devices list of the host
+        self._nodes[addr].devs.remove(req.did)
+        
+        # Update location infos for chunks on it
+        # chunk -> dev ok
+        # dev -> chunks how? should we iterate all the chunks to find chunks
+        # belonging to one device?
+        
+        #if replicate
 
-        self.cache[id].status = 'offline'
-        self._flush(id)
-        # Notify stroage manager dev offline
+        log('Device %s offline' % req.did)
+        self._flush()
         return 'ok'
 
     def frozen(self, req):
         """Frozen device
         @did
         """
-        dev = self._get_dev(req.path)
-        id = dev.config.id
-        if id not in self.cache:
-            self._error('not in cache')
+        if req.did not in self._devices:
+            self._error('not online')
+    
+        # Should we wait for writings to be finished?
+        self._devices[req.did].conf.mode = 'frozen'
 
-        self.cache[id].mode = 'frozen'
-        self._flush(id)
+        self._flush()
+        log('Device %s frozen' % req.did)
         return 'ok'
 
     def status(self, req):
         """Get status of the storage system"""
-        return {'disks': self.cache, 'chunks': len(self.chunks) }
+        return {'devices': self._devices, 'chunks': len(self._chunks)}
         # Iterate dev cache to get realtime stat here, disk stat is carried with
         # chunk server's heart-beat message
         #return  {'summary': self.statistics, 'disks': self.cache}

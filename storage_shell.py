@@ -42,6 +42,10 @@ class StorageShell:
         dev = Dev(path)
         if not dev.config:
             raise IOError('not formatted')
+        
+        if dev.config.type != 'chunk':
+            raise IOError('wrong type')
+
         return dev   
 
     def format(self, args):

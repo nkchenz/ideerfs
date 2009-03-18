@@ -271,6 +271,8 @@ class File:
                 if new:
                     self.fs.free_chunk(meta.id, chunk) # cleanup
                 # Fatal error
+                # Fixme, should free the chunk you allocated when something
+                # bad happens
                 raise IOError('no replications available: object %d chunk %d' % (meta.id, chunk))
     
             # Update and file size to meta node

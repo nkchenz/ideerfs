@@ -123,17 +123,18 @@ class ChunkService(Service):
             # Lock
             tmp = self.devices_changed
             self.devices_changed = [] 
+            confs = {}
             # Unlock
 
             # Read newest status of devs
             # changed = {}
             for did in tmp:
                 try:
-                    changed[did] = self._lookup_dev(did)
+                    confs[did] = self._lookup_dev(did).config
                 except:
                     continue
 
-            rc = nio.call('storage.heartbeat', addr = self._addr, changed = changed)
+            rc = nio.call('storage.heartbeat', addr = self._addr, confs = confs)
 
             # Delete old chunks
             for did, chunks in rc.deleted_chunks.items():
