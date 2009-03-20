@@ -5,6 +5,7 @@ Object interface
 import time
 import os
 import hashlib
+from collections import defaultdict
 
 from dev import *
 from oodict import OODict
@@ -12,27 +13,24 @@ import config
 
 
 class Object(OODict):
+    """Object model
+    
+    flat mode, all attributes are in self directly"""
 
     def __init__(self, name, id, parent_id, type, attr = {}):
         self.id = id
         self.type = type
-        self.meta = {
-            'ctime': '%d' % time.time(),
-            'name': name
-        }
-        
+        self.ctime = '%d' % time.time()
+        self.name = name
+
         for k,v in attr.items():
-            self.meta[k] = v
+            self.[k] = v
         
         if type == 'dir':
-            self.children = {
-                '.': id,
-                '..': parent_id
-            }
+            self.children = {'.': id, '..': parent_id} # Dir
         else:
-            self.meta['size'] = 0
+            self.size = 0 # File
             self.chunks = {}
-
 
 class ObjectShard():
     """Read write objects from meta_dev, middle layer between meta service and
@@ -138,23 +136,23 @@ class ChunkShard():
     def _load_chunk_db(self, dev):
         did = dev.config.id
         if did not in self.chunks:
-            self.chunks[did] = dev.load(self._chunks_file)
+            self.chunks[did] = dev.load(self._chunks_file, defaultdict(dict))
 
     def _insert_chunk_entry(self, chunk, dev):
         """Add one entry for new chunk"""
         # Lockme
         self._load_chunk_db(dev)
-        tmp = chunk.fid, chunk.cid, chunk.verion
+        tmp = chunk.fid, chunk.cid
         if tmp not in self.chunks[did]:
-            self.chunks[did].append(tmp)
+            self.chunks[did][tmp] = chunk
 
     def _delete_chunk_entry(self, chunk, dev):
         """Add one entry for new chunk"""
         # Lockme
         self._load_chunk_db(dev)
-        tmp = chunk.fid, chunk.cid, chunk.verion
+        tmp = chunk.fid, chunk.cid
         if tmp in self.chunks[did]:
-            self.chunks[did].remove(tmp)
+            del self.chunks[did][tmp]
 
     def _flush_chunk_db(self, dev):
         dev.store(self.chunks[dev.config.id], self._chunks_file)

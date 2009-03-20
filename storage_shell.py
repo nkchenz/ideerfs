@@ -46,7 +46,7 @@ class StorageShell:
         if dev.config.type != 'chunk':
             raise IOError('wrong type')
 
-        return dev   
+        return dev
 
     def format(self, args):
         """Format device, create root object if type is meta"""
@@ -59,7 +59,7 @@ class StorageShell:
     def get_chunks(self, dev):
         """Get chunk list of a device"""
         log('Scanning chunks on ', dev.confg.path)
-        return dev.load('chunks', {})
+        return dev.load('chunks', [])
 
     def online(self, args):
         """Online device, send reports to storage server"""
@@ -118,4 +118,10 @@ class StorageShell:
         """
         if args.path == 'local':
             print self._devices
+        elif:
+            args.path == 'all':
+            print self._nio.call('storage.status')
+        else:
+            dev = self._get_device(args.path)
+            print dev.config
         #print '%s %s/%s %d%% %s %s %s' %(dev.path, byte2size(dev.used), byte2size(dev.size), dev.used * 100 / dev.size, dev.status, dev.mode, host)

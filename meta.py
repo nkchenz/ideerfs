@@ -134,7 +134,7 @@ class MetaService(Service):
         
         @file
         @type
-        @attr   optional
+        @attrs   optional
         
         return object id
         """
@@ -144,8 +144,8 @@ class MetaService(Service):
         file = os.path.normpath(req.file)
     
         # Valid attrs names here
-        if 'attr' not in req:
-            req.attr = {}
+        if 'attrs' not in req:
+            req.attrs = {}
         if req.type not in ['dir', 'file']:
             self._error('wrong type')
 
@@ -169,7 +169,7 @@ class MetaService(Service):
         if not id:
             self._error('next seq error')
     
-        new_file = Object(myname, id, parent.id, req.type, req.attr)
+        new_file = Object(myname, id, parent.id, req.type, req.attrs)
         parent.children[myname] = id
         
         # A journal-log should be created in case failure between these two ops
@@ -184,26 +184,29 @@ class MetaService(Service):
         for storage manager to get the location infos. Should we store them
         with meta data? 
         
-        @file
-        @chunks    chunks list
+        @fid
+        @offset
+        @length
         
-        return chunk info dict
-        
+        f.chunks is a dict of cid:chunk
+
+        return chunks that exist, and indexes of first, last chunk
         """
-        f = self._lookup(req.file)
+        f = self._object_shard.load(req.fid)
         if f is None or self._isdir(f):
-            self._error('no such file or is a directory' % req.file)
+            self._error('no such file or is a directory' % req.fid)
         
-        data = OODict()
-        data.id = f.id
-        data.chunks = {}
-        for chunk in req.chunks:
-            if chunk in f.chunks:
-                data.chunks[chunk] = f.chunks[chunk]
-        return data
+        value = OODict()
+        value.first = offset / f.chunk_size
+        value.last = (offset + length) / f.chunk_size
+        value.exist_chunks = {}
+        for cid in range(value.first, value.last + 1):
+            if cid in f.chunks:
+                value.exist_chunks[cid] = f.chunks[cid]
+        return value 
     
     def _delete_recursive(self, obj):
-        deleted = {}
+        deleted = []
         for name, id in obj.children.items():
             if name in ['.', '..']:
                 continue
@@ -215,9 +218,9 @@ class MetaService(Service):
                 tmp = self._delete_recursive(child)
             if child.type == 'file':
                 tmp = self._delete_file(child)
-            deleted.update(tmp)
+            deleted += tmp
         # Delete self
-        self._delete_object(obj.id)
+        self._object_shard.delete_object(obj.id)
         return deleted
     
         
@@ -225,9 +228,9 @@ class MetaService(Service):
         """Delete file type object"""
         self._object_shard.delete_object(obj.id)
         if obj.chunks:
-            return {obj.id: obj.chunks}
+            return obj.chunks.values()
         else:
-            return {}
+            return []
 
     def delete(self, req):
         """Delete file, store the free chunks to file 'deleted_chunks', tell
