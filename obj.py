@@ -20,7 +20,7 @@ class Object(OODict):
     def __init__(self, name, id, parent_id, type, attr = {}):
         self.id = id
         self.type = type
-        self.ctime = '%d' % time.time()
+        self.ctime = time.time()
         self.name = name
 
         for k,v in attr.items():

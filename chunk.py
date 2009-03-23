@@ -61,7 +61,7 @@ class ChunkService(Service):
         # Hash list can be used here, split a chunk to 10 small ones, read n
         # small chunks which contain the data you want, offset+len
 
-        @fid, cid, version, size
+        @chunk          fid, cid, version, size
         @offset, data
         @did            device id
         @new            whether to create a new chunk
@@ -77,10 +77,7 @@ class ChunkService(Service):
             self._error('no enough space')
 
         try:
-            c = Chunk()
-            c.fid, c.cid, c.version, c.size = req.fid, req.cid, req.version, req.size
-            self._chunk_shard.store_chunk(c, req.offset, req.payload, dev, req.new)
-
+            self._chunk_shard.store_chunk(req.chunk, req.offset, req.payload, dev, req.new)
             self._mark_changed(req.did)
         except IOError, err:
             self._error(err.message)
@@ -89,15 +86,13 @@ class ChunkService(Service):
     def read(self, req):
         """Read from chunk
         @did        device id
-        @fid        file object id
-        @cid        chunk id
+        @chunk
         @offset     offset
         @len        bytes want to read
         """
         dev = self._lookup_dev(req.did)
         try:
-            c = Chunk()
-            c.fid, c.cid, c.version = req.fid, req.cid, req.verion
+            c = Chunk(req.chunk)
             data = self._chunk_shard.load_chunk(c, dev)
         except IOError, err:
             self._error(err.message)

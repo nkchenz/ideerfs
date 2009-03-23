@@ -78,9 +78,20 @@ class MetaService(Service):
         obj = self._lookup(req.file)
         if not obj:
             self._error('no such file or directory')
-        obj.meta.id = obj.id
-        obj.meta.type = obj.type
-        return obj.meta
+        
+        attrs = {}
+        keys = obj.keys()
+        
+        # Filt some attributes 
+        not_exported_keys = ['children', 'chunks']
+        for key in not_exported_keys:
+            if key in keys:
+                keys.remove(key)
+
+        for key in keys:
+            attrs[key] = obj[key]
+
+        return attrs
 
     def set(self, req):
         """
@@ -91,9 +102,6 @@ class MetaService(Service):
         
         return 'ok' if success. If any exception raised, 'error' will 
                 be set in the response message 
-        
-        'chunks' of a file is kinda meta too, just like 'children' of a dir, we
-        do not put them in 'meta' because they are usually too large. Shall we?
         """
         obj = self._lookup(req.file)
         if not obj:
@@ -101,11 +109,10 @@ class MetaService(Service):
         for k,v in req.attrs.items():
             # You may want to validate attr k here
             if k == 'chunks':
-                for chunk_id, info in v.items():
-                    obj.chunks[chunk_id] = info
-                continue
-            obj.meta[k] = v
-        obj.meta.mtime = '%d' % time.time()
+                obj.chunks.update(v)
+            else:
+                obj[k] = v
+        obj.mtime = time.time()
         self._object_shard.store_object(obj)
         return 'ok'
 
@@ -197,8 +204,8 @@ class MetaService(Service):
             self._error('no such file or is a directory' % req.fid)
         
         value = OODict()
-        value.first = offset / f.chunk_size
-        value.last = (offset + length) / f.chunk_size
+        value.first = req.offset / f.chunk_size
+        value.last = (req.offset + req.length) / f.chunk_size
         value.exist_chunks = {}
         for cid in range(value.first, value.last + 1):
             if cid in f.chunks:

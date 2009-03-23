@@ -7,6 +7,8 @@ http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/dfs/Distributed
 http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/kfs/KosmosFileSystem.html
 """
 
+from oodict import *
+from obj import *
 from nio import *
 from util import *
 import config
@@ -81,9 +83,8 @@ class FileSystem:
         return self._nio_meta.call('meta.set', fid = fid, attrs = attrs)
 
     def get_chunks(self, fid, offset, length):
-        """Query meta server whether a chunk exists in file
-        """
-        return self._nio_meta.call('meta.get_chunks', fid = fid, chunks = chunks)
+        """Query meta server whether a chunk exists in file """
+        return self._nio_meta.call('meta.get_chunks', fid = fid, offset = offset, length = length)
 
     def get_chunk_locations(self, chunks):
         """Get the localtions of chunks"""
@@ -93,8 +94,8 @@ class FileSystem:
         """Alloc n new chunks"""
         return self._nio_storage.call('storage.alloc', size = size, n = n)
         
-    def free_chunk(self, chunk):
-        return self._nio_storage.call('storage.free', chunk = chunk)
+    def publish_chunk(self, chunk, dids):
+        return self._nio_storage.call('storage.publish', chunk = chunk, dids = dids)
       
 
 class File:
@@ -124,41 +125,34 @@ class File:
     def flush():
         pass
          
-    def read_chunk(self, chunk, offset, len):
-        """
-        Read chunk of a object, from offset, length is len, locations and version
-        are in info
-        """
-        info = OODict(info)
-        for dev, addr in locations.items():
+    def _read_chunk(self, chunk, loca, offset, len):
+        """Read chunk from replicas"""
+        for did, addr in loca:
             try:
                 nio_chunk = NetWorkIO(addr)
-                status, payload = nio_chunk.call('chunk.read', dev_id = dev, \
-                    object_id = object_id, chunk_id = chunk_id, version = info.version, \
-                    offset = offset, len = len)
+                status, payload = nio_chunk.call('chunk.read', did = did, chunk = chunk, offset = offset, len = len)
                 nio_chunk.close()
                 return payload
             except IOError, err:
-                print 'dev %s at %s for %d:%d read error: %s' % (dev, str(addr), object_id, chunk_id, err.message)
+                debug('chunk.read', loca,  chunk, err)
         # Fatal error
-        raise IOError('no replications available: object %d chunk %d' % (object_id, chunk_id))
+        raise IOError('no replica available', loca, chunk)
      
-    def write_chunk(self, chunk, info, offset, data):
-        # Write chunk to data node
-        info = OODict(info)
-        devs = []
-        for dev, addr in info.locations.items():
+    def _write_chunk(self, chunk, loca, offset, data, new):
+        # Write chunk to data nodes
+        dids = []
+        for did, addr in loca:
             try:
                 nio_chunk = NetWorkIO(addr)
-                nio_chunk.call('chunk.write', dev_id = dev, object_id = object_id, \
-                    chunk_id = chunk_id, version = info.version, offset = offset, \
-                    payload = payload, chunk_size = info.size)
+                nio_chunk.call('chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new)
                 nio_chunk.close()
-                devs.append(dev)
+                dids.append(dev)
             except IOError, err:
-                print 'dev %s at %s for %d:%d write error: %s' % (dev, str(addr), object_id, chunk_id, err.message)
+                debug('chunk.write', loca,  chunk, err)
         
-        return devs
+        if not dids:
+            raise IOError('data not written', loca, chunk)
+        return dids
     
  
     def read(self, offset, length):
@@ -178,6 +172,8 @@ class File:
             length = meta.size - offset # read outof range
         
         chunks = self._fs.get_chunks(meta.id, offset, length)
+        locations = self._fs.get_chunk_locations(chunks.exist_chunks)
+
         # Window algo
         data = []
         # Init, special case for beginning
@@ -194,9 +190,11 @@ class File:
             if cid not in chunks.exist_chunks:
                 data.append(zeros(w_len)) # Hole in sparse file
             else:
+                chunk = chunks.exist_chunks[cid]
                 #chunk = (meta.id, cid, version)
-                #locations = ()
-                data.append(self._fs.read_chunk(meta.id, chunk, locations, w_start, w_len))
+                if cid not in locations:
+                    raise IOError('no replica found for chunk', chunk)
+                data.append(self._read_chunk(chunk, locations[cid], w_start, w_len)
 
             # Iterate next
             cid += 1
@@ -221,6 +219,7 @@ class File:
         offset2 = offset + length # The last byte write
 
         chunks = self._fs.get_chunks(meta.id, offset, length)
+        locations = self._fs.get_chunk_locations(chunks.exist_chunks)
         
         w_start = 0
         offset_in_chunk = offset % meta.chunk_size
@@ -229,34 +228,42 @@ class File:
         attrs = OODict()
         while cid <= chunks.last:
 
+            attrs = OODict()
+
             new = False
             if cid not in chunks.exist_chunks:
                 # Alloc new chunk
-                # new = True
                 new = True
-                #if not info.locations:
-                #    raise IOError('storage.alloc no free space')
+                loca = self._fs.alloc_chunk(meta.chunk_size, meta.replica_factor)
+                if not loca:
+                    raise IOError('storage.alloc no free space')
+                chunk = Chunk()
+                chunk.fid, chunk.cid, chunk.version, chunk.size = meta.id, cid, 1, meta.chunk_size
             else:
+                # Write old chunk 
+                chunk = chunks.exist_chunks[cid]
+                if cid not in locations:
+                    raise IOError('no replica found for chunk', chunk)
+                loca = locations[cid]
             
-            # Write chunk
-            devs = self._fs.write_chunk(meta.id, chunk, info, offset_in_chunk, data[w_start: w_start + w_len])
-            if not devs:
-                if new:
-                    self._fs.free_chunk(meta.id, chunk) # cleanup
-                # Fatal error
-                # Fixme, should free the chunk you allocated when something
-                # bad happens
-                raise IOError('no replications available: object %d chunk %d' % (meta.id, chunk))
+            # Write chunk. Perhaps we should seperate creating with writing,
+            # and let chunk servers publish chunks to storage manager 
+            dids = self._write_chunk(chunk, loca,  offset_in_chunk, data[w_start: w_start + w_len], new)
     
-    
-            # See whether write outof file, update file size as needed
+            # Update size and chunk location
+            # See whether we are writing out of file, update file size if yes
             new_size = w_start + w_len
             if new_size > meta.size:
-                pass
+                attrs.size = new_size
 
-            # Update chunk info and version with storage node, maybe this should 
-            # be done by chunk node
-            self._fs.update_chunk_info(meta.id, chunk, info.version, devs, new, meta.replica_factor)
+            if not new:
+                chunk.version += 1 # Update version
+            del chunk.size # We don't want chunk.size be saved in chunk, this is ugly. In fact, chunk is more than a object id than a object
+            attrs.chunks = {cid: chunk}
+            self._fs.setattr(meta.id, attrs)
+
+            # Update with storage manager
+            self._fs.publish_chunk(chunk, dids)
             
             cid += 1
 

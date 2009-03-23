@@ -157,36 +157,37 @@ class StorageService(Service):
         """Publish a chunk replica, this is for single newly created chunk. If
         you want to publish all chunks on a device, use 'online' method please.
         @chunk
-        @did
+        @dids
         """
-        if not self._insert_chunks_map_entry(chunk, req.did):
-            self._error('stale')
-        else:
-            return 'ok'
+        stale = []
+        for did in req.dids:
+            if not self._insert_chunks_map_entry(chunk, did):
+                stale.append(did)
+        return {'stale': stale}
 
     def search(self, req):
         """Search chunks locations
         
-        @chunks
+        @chunks     dict of chunks
         
-        return dict of chunk: locations. 
+        return dict of cid: locations. 
         locations is list of tuple (did, addr)
         """
         value = defaultdict(list)
-        for chunk in req.chunks:
+        for cid, chunk in req.chunks.items():
             key = chunk.fid, chunk.cid
             if key not in self._chunks_map:
                 continue # No replicas 
             
             version = self._chunks_map[key]['v']
             if chunk.version != version:
-                debug('search chunk', chunk, version)
+                debug('version mismatch', chunk, version)
                 continue # Version error
            
             # Found avaiable devices
             for did in self._chunks_map[key]['l']:
                 if self._avaiable(did):
-                    value[chunk].append((did, self._devices[did].addr))
+                    value[cid].append((did, self._devices[did].addr))
 
         return value
     
