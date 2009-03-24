@@ -31,7 +31,6 @@ class StorageShell:
 
     def _pre_command(self, cmd, args):
         """Hook for pre cmd running"""
-        debug('Args:', args)
         if cmd not in ['format']: # No need to connect storage service while formatting
             self._nio = NetWorkIO(config.storage_server_address)
 
@@ -56,8 +55,8 @@ class StorageShell:
 
     def get_chunks(self, dev):
         """Get chunk list of a device"""
-        log('Scanning chunks on ', dev.confg.path)
-        return dev.load('chunks', [])
+        log('Scanning chunks on ', dev.config.path)
+        return dev.load('chunks', {})
 
     def online(self, args):
         """Online device, send reports to storage server"""
@@ -67,7 +66,7 @@ class StorageShell:
             self._devices[id] = dev.config.path # Add entry
         if dev.config.status != 'offline':
             raise IOError('not offline')
-        self._nio.call('storage.online', conf = dev.conf, addr = config.chunk_server_address, report = self.get_chunks(dev))
+        self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, report = self.get_chunks(dev))
         dev.config.status = 'online'
         dev.flush()
         self._flush()
@@ -116,8 +115,7 @@ class StorageShell:
         """
         if args.path == 'local':
             print self._devices
-        elif:
-            args.path == 'all':
+        elif args.path == 'all':
             print self._nio.call('storage.status')
         else:
             dev = self._get_device(args.path)

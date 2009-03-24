@@ -78,7 +78,7 @@ class ObjectShard():
         #return os.path.join(self._shard.meta_dir, id2path(id))
         pass
 
-    def get_root_object():
+    def get_root_object(self):
         return self._root
 
     def flush(self):
@@ -131,7 +131,7 @@ class ChunkShard():
     
     """
     def __init__(self):
-        self._chunks_file = 'chunks'
+        self._chunks_file = 'chunks' # Dict of dict
         self._chunks = {}
 
     def _load_chunk_db(self, dev):

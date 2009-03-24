@@ -80,7 +80,7 @@ class NLParser:
             try:
                 op = getattr(self.dispatcher, name)
             except AttributeError:
-                print 'operation not support:', name
+                print 'Operation not supportted', name
                 sys.exit(-1)
             
             if hasattr(self.dispatcher, '_pre_command'):
@@ -89,6 +89,6 @@ class NLParser:
             op(args)
             sys.exit(0)
             
-        print 'cant understand:', sentence
+        print 'Can\'t understand', sentence
         return -1
 

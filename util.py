@@ -42,7 +42,7 @@ def zeros(n):
     return '\0' * n
 
 def log(*vars):
-    debug(vars)
+    debug(*vars)
     
 def debug(*vars):
     for var in vars:

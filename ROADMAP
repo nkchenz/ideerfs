@@ -42,3 +42,9 @@ notify list
 - chunk piping and replicating
 - mapreduce
 - client buffer
+
+--server crash transparent for client
+
+
+remove defaultdict from obj.py
+test storage online, and chunk

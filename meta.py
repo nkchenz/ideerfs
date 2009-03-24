@@ -255,7 +255,7 @@ class MetaService(Service):
         if not parent or name not in parent.children:
             self._error('no such file or directory')
 
-        obj = self.object_shard.load_object(parent.children[name])
+        obj = self._object_shard.load_object(parent.children[name])
         if obj:
             if obj.type == 'dir':
                 if len(obj.children) > 2:

@@ -8,6 +8,7 @@ from oodict import OODict
 from util import *
 from dev import *
 from nio import *
+from obj import *
 from io import *
 from service import *
 import config
@@ -19,7 +20,7 @@ class ChunkService(Service):
     When offlining a disk, how can we know no one is writing on it? write lock?
     """
 
-    def __init__(self, addr):
+    def __init__(self):
         self._addr = config.chunk_server_address
         self._db = FileDB(config.home)
         self._devices_file = 'exported_devices'

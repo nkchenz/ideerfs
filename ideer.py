@@ -17,7 +17,7 @@ controller = {
 }
 
 if len(sys.argv) <= 1 or sys.argv[1] == 'help':
-    print 'Usage:', sys.argv[0], '|'.join(subcmds), 'action'
+    print 'Usage:', sys.argv[0], '|'.join(controller.keys()), 'action'
     sys.exit(-1)
 
 cmd = sys.argv[1]

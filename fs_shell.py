@@ -41,7 +41,7 @@ class FSShell:
         dir = self._normpath(args.dir)
         meta = self._fs.stat(dir)
         if meta and meta.type == 'dir':
-            self._db.save(dir, 'pwd')
+            self._db.store(dir, 'pwd')
 
     def stat(self, args):
         file = self._normpath(args.file)

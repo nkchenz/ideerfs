@@ -146,7 +146,7 @@ class File:
         for did, addr in loca:
             try:
                 nio_chunk = NetWorkIO(addr)
-                nio_chunk.call('chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new)
+                nio_chunk.call('chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new = new)
                 nio_chunk.close()
                 dids.append(dev)
             except IOError, err:
@@ -195,7 +195,7 @@ class File:
                 chunk = chunks.exist_chunks[cid]
                 if cid not in locations:
                     raise IOError('no replica found for chunk', chunk)
-                data.append(self._read_chunk(chunk, locations[cid], w_start, w_len)
+                data.append(self._read_chunk(chunk, locations[cid], w_start, w_len))
 
             # Iterate next
             cid += 1
@@ -273,4 +273,4 @@ class File:
             w_start = 0
             w_len = meta.chunk_size
             
-       return bytes_written 
+        return bytes_written 

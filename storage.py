@@ -2,7 +2,6 @@
 
 import time
 import random
-from collections import defaultdict
 
 from util import *
 from service import *
@@ -43,17 +42,17 @@ class StorageService(Service):
     blocks to other Datanodes.
     """
     
-    def __init__(self, addr):
+    def __init__(self):
         self._db = FileDB(config.home)
         
         # Deleted chunks, indexed by device id, so you can easily get all
         # deleted chunks on one device
-        self._deleted_chunks = defaultdict(list)
+        self._deleted_chunks = {} 
         self._nodes = {} # Nodes Alive info
 
         log('Loading devices')
         self._devices_file = 'all_devices' # Device config and address cache
-        self._devices = self._db.load(self._devices_file, defaultdict(dict))
+        self._devices = self._db.load(self._devices_file, {})
         
         """Chunk location DB, dict.  key is (fid, cid), value is a dict of
         version and locations.
@@ -61,7 +60,7 @@ class StorageService(Service):
         """
         log('Loading chunks location cache')
         self._chunks_map_file = 'chunks_map'
-        self._chunks_map = self._db.load(self._chunks_map_file, defaultdict(dict))
+        self._chunks_map = self._db.load(self._chunks_map_file, {})
 
     def _flush(self):
         # This is quite heavy
@@ -145,7 +144,7 @@ class StorageService(Service):
                 old_chunk = chunk
                 old_chunk.version = old_version
                 for did in self._chunks_map[key]['l']:
-                    self._deleted_chunks[did].append(old_chunk)
+                    self._deleted_chunks.set_default(did, []).append(old_chunk)
                 # Save new
                 self._chunks_map[key]['l'] = set([did])
 
@@ -171,7 +170,7 @@ class StorageService(Service):
         return dict of cid: locations. 
         locations is list of tuple (did, addr)
         """
-        value = defaultdict(list)
+        value = {} 
         for cid, chunk in req.chunks.items():
             key = chunk.fid, chunk.cid
             if key not in self._chunks_map:
@@ -185,7 +184,7 @@ class StorageService(Service):
             # Found avaiable devices
             for did in self._chunks_map[key]['l']:
                 if self._avaiable(did):
-                    value[cid].append((did, self._devices[did].addr))
+                    value.set_default(cid, []).append((did, self._devices[did].addr))
 
         return value
     
@@ -220,16 +219,16 @@ class StorageService(Service):
             
         # Update changed devices
         for did, conf in req.confs.items():
-            self._devices[did].conf = conf
+            self._devices.set_default(did, OODict()).conf = conf
            
         # See whether there are chunks deleted by meta node, belonging to this
         # chunk server
-        deleted = defaultdict(list)
+        deleted = {}
         for did in self._nodes[req.addr].devs:
             if did in self._deleted_chunks:
                 deleted[did] = self._deleted_chunks[did]
                 del self._deleted_chunks[did]
-        return {'deleted_chunks': dict(deleted)}
+        return {'deleted_chunks': deleted}
 
     def online(self, req):
         """Online device
@@ -251,7 +250,7 @@ class StorageService(Service):
 
         # Flush
         self._flush()
-        log('Device %s online' % req.did)
+        log('Device %s online' % did)
         return 'ok'
 
     def offline(self, req):
