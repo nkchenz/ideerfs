@@ -1,11 +1,9 @@
-"""
-Meta service
+"""Meta service
 
 Meta should be kept in memory using a special data structure such as a B+
 tree, with journal on persistent storage, and periodically flush and checkpoint.
 
 Big data chunks are stored to disks directly.
-
 """
 
 import time
@@ -18,8 +16,7 @@ import config
 
 
 class MetaService(Service):
-    """
-    Filesystem meta interface
+    """Filesystem meta interface
 
     Translate paths to objects, which are stored in object shard.
     """
@@ -43,8 +40,7 @@ class MetaService(Service):
             return self._object_shard.load_object(self._root)
         names = file.split('/')
         names.pop(0) # Remove
-        debug('lookup ' + file)
-        debug(names)
+        debug('Lookup ', file)
         parent_id = self._root
         for name in names:
             parent = self._object_shard.load_object(parent_id)
@@ -69,11 +65,11 @@ class MetaService(Service):
         else:
             return False
 
-    def get(self, req):
-        """Get 'meta' attribute of a file
+    def stat(self, req):
+        """Stat of a file
         
         @file
-        return meta dict, object id is returned too for convenience
+        return attributes dict
         """
         obj = self._lookup(req.file)
         if not obj:
@@ -94,8 +90,7 @@ class MetaService(Service):
         return attrs
 
     def set(self, req):
-        """
-        Set file attributes in 'meta'.
+        """Set file attributes
         
         @file
         @attrs
@@ -117,7 +112,7 @@ class MetaService(Service):
         return 'ok'
 
     def lsdir(self, req): 
-        """Get all the children names fo a dir
+        """Get all the children names of a dir
         
         @dir
         
@@ -210,7 +205,7 @@ class MetaService(Service):
         for cid in range(value.first, value.last + 1):
             if cid in f.chunks:
                 value.exist_chunks[cid] = f.chunks[cid]
-        return value 
+        return value
     
     def _delete_recursive(self, obj):
         deleted = []
@@ -245,7 +240,8 @@ class MetaService(Service):
     
         There shall be a .trash dir to store it first, auto delete 30 days later
         
-        @file    root can't be deleted
+        @file                note that root can't be deleted
+        @recursive           bool
         
         return ok
         """

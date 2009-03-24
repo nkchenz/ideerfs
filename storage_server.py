@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
-"""
-Storage manager
-"""
+"""Storage manager """
 
 import config
 from nio_server import *

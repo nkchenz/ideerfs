@@ -1,6 +1,4 @@
-"""
-Storage service: manage and allocate storage
-"""
+"""Storage service: manage and allocate storage """
 
 import time
 import random
@@ -101,7 +99,7 @@ class StorageService(Service):
 
         return locations, which is a list of tuple (did, addr)
         """
-        debug('malloc %s bytes on %d devices' % (req.size, req.n))
+        debug('Alloc %s bytes on %d devices' % (req.size, req.n))
         
         # Alloc algorithm, better have a list sorted by free space
         value = []
@@ -130,7 +128,7 @@ class StorageService(Service):
         del self._chunks_map[key]
 
     def _insert_chunks_map_entry(self, chunk, did):
-        """Add chunk replica location info to map
+        """Add chunk replica info to location map
         
         return True if inserted, False if stale """
         key = chunk.fid, chunk.cid
@@ -299,7 +297,7 @@ class StorageService(Service):
 
     def status(self, req):
         """Get status of the storage system"""
-        return {'devices': self._devices, 'chunks': len(self._chunks)}
+        return {'devices': self._devices}
         # Iterate dev cache to get realtime stat here, disk stat is carried with
         # chunk server's heart-beat message
         #return  {'summary': self.statistics, 'disks': self.cache}

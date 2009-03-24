@@ -1,6 +1,4 @@
-"""
-Network IO interface, like the RPC
-"""
+"""Network IO interface, like the RPC"""
 
 import os
 import socket

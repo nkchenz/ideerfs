@@ -1,6 +1,4 @@
-"""
-Base service class
-"""
+"""Base service class """
 
 import os
 import hashlib

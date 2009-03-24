@@ -1,5 +1,4 @@
-"""
-FS client interface
+"""FS client interface
 
 refs:
 http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/FileSystem.html
@@ -16,7 +15,7 @@ import config
 class FileSystem:
     """Filesystem interface at client node
     
-    We could use a easy way to declare this functions
+    We could use a easier way to declare these functions:
     def __init__func(self, method):
         proto, func = method.split('.')
         nio = getattr(self, '_nio_' + proto)
@@ -77,7 +76,7 @@ class FileSystem:
 
     def stat(self, file):
         """Get attributes of file, stat file"""
-        return self._nio_meta.call('meta.get', file = file)
+        return self._nio_meta.call('meta.stat', file = file)
     
     def setattr(self, fid, attrs):
         return self._nio_meta.call('meta.set', fid = fid, attrs = attrs)
@@ -105,6 +104,9 @@ class File:
         self._read_buffer = '' # Client buffer
         self._write_buffer = ''
         
+        # Current position
+        # self._pos = 0
+
         # If we get file meta here, what shall we do if meta changes in other threads?
         #self.meta = self.fs.get_file_meta(self.name)
                 
@@ -159,9 +161,9 @@ class File:
         """Read len bytes from offset.
 
         @offset
-        @len
+        @length
 
-        May return less than len if EOF is encountered or errors happened
+        May return less than length if EOF is encountered or errors happened
         """        
         meta = self._fs.stat(self.name)
         if offset >= meta.size:
@@ -181,8 +183,8 @@ class File:
         w_len = meta.chunk_size - w_start
         cid = chunks.first
         while cid <= chunks.last:
-            # Special case for ending, final chunk. We can handle the case
-            # that beginning is als ending.
+            # Special case,  for final chunk. Take care when we only have one
+            # chunk in the file
             if cid == chunks.last:
                 w_len = (offset + length) % meta.chunk_size
  
@@ -191,16 +193,16 @@ class File:
                 data.append(zeros(w_len)) # Hole in sparse file
             else:
                 chunk = chunks.exist_chunks[cid]
-                #chunk = (meta.id, cid, version)
                 if cid not in locations:
                     raise IOError('no replica found for chunk', chunk)
                 data.append(self._read_chunk(chunk, locations[cid], w_start, w_len)
 
             # Iterate next
             cid += 1
+
             # Set normal case value
             w_start = 0
-            w_len = meta.chunk_sze
+            w_len = meta.chunk_size
            
         return ''.join(data)
 
@@ -216,19 +218,19 @@ class File:
             return 0 # Zero bytes written
         meta = self._fs.stat(self.name)
         length = len(data)
-        offset2 = offset + length # The last byte write
 
         chunks = self._fs.get_chunks(meta.id, offset, length)
         locations = self._fs.get_chunk_locations(chunks.exist_chunks)
         
-        w_start = 0
-        offset_in_chunk = offset % meta.chunk_size
-        w_len = meta.chunk_size - offset_in_chunk
+        bytes_written = 0
+        w_start = offset % meta.chunk_size
+        w_len = meta.chunk_size - w_start 
         cid = chunks.first
         attrs = OODict()
         while cid <= chunks.last:
 
-            attrs = OODict()
+            if cid == chunks.last: # Final chunk
+                w_len = (offset + length) % meta.chunk_size
 
             new = False
             if cid not in chunks.exist_chunks:
@@ -237,8 +239,8 @@ class File:
                 loca = self._fs.alloc_chunk(meta.chunk_size, meta.replica_factor)
                 if not loca:
                     raise IOError('storage.alloc no free space')
-                chunk = Chunk()
-                chunk.fid, chunk.cid, chunk.version, chunk.size = meta.id, cid, 1, meta.chunk_size
+                chunk = Chunk(meta.id, cid, 1)
+                chunk.size = meta.chunk_size
             else:
                 # Write old chunk 
                 chunk = chunks.exist_chunks[cid]
@@ -248,28 +250,27 @@ class File:
             
             # Write chunk. Perhaps we should seperate creating with writing,
             # and let chunk servers publish chunks to storage manager 
-            dids = self._write_chunk(chunk, loca,  offset_in_chunk, data[w_start: w_start + w_len], new)
+            dids = self._write_chunk(chunk, loca,  w_start, data[bytes_written: bytes_written + w_len], new)
     
             # Update size and chunk location
             # See whether we are writing out of file, update file size if yes
-            new_size = w_start + w_len
+            bytes_written += w_len
+            new_size = offset + bytes_written
             if new_size > meta.size:
+                meta.size = new_size
                 attrs.size = new_size
-
             if not new:
                 chunk.version += 1 # Update version
             del chunk.size # We don't want chunk.size be saved in chunk, this is ugly. In fact, chunk is more than a object id than a object
             attrs.chunks = {cid: chunk}
+            
+            # Update with meta server
             self._fs.setattr(meta.id, attrs)
-
-            # Update with storage manager
+            # Update with storage server
             self._fs.publish_chunk(chunk, dids)
             
             cid += 1
-
-            offset_in_chunk = 0
-            w_start += w_len
-            if cid == chunks.last: # Final chunk
-                w_len = offset2 % meta.chunk_size
+            w_start = 0
+            w_len = meta.chunk_size
             
-        return length
+       return bytes_written 

@@ -1,6 +1,4 @@
-"""
-Natural language like arguments parser
-"""
+"""Natural language like arguments parser """
 
 import re
 from oodict import OODict

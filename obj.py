@@ -1,6 +1,4 @@
-"""
-Object interface
-"""
+"""Object interface """
 
 import time
 import os
@@ -17,14 +15,14 @@ class Object(OODict):
     
     flat mode, all attributes are in self directly"""
 
-    def __init__(self, name, id, parent_id, type, attr = {}):
+    def __init__(self, name, id, parent_id, type, attrs = {}):
         self.id = id
         self.type = type
         self.ctime = time.time()
         self.name = name
 
-        for k,v in attr.items():
-            self.[k] = v
+        for k,v in attrs.items():
+            self[k] = v
         
         if type == 'dir':
             self.children = {'.': id, '..': parent_id} # Dir
@@ -113,7 +111,10 @@ class ObjectShard():
         return True
 
 class Chunk(OODict):
-    pass
+    def __init__(self, fid, cid, version):
+        self.fid = fid
+        self.cid = cif
+        self.version = version
 
 CHUNK_HEADER_SIZE = 1024
 
@@ -218,16 +219,14 @@ class ChunkShard():
         else:
             chunk.data = self.load_chunk(chunk, dev)
 
+        # Update check sum
+        self._update_checksum(chunk, offset, data)
         # Write data
         self._write_chunk_data(file, offset, data)
 
-        # Update check sum
-        self._update_checksum(chunk, offset, data)
-        
         # Get new physical size
         old_psize = chunk.psize
         chunk.psize = get_psize(file)
-
         if not new: # If new is True, means that this is just a replica
             chunk.version += 1
 
@@ -244,6 +243,7 @@ class ChunkShard():
             # to get old chunk
             chunk.version -= 1
             self._delete_chunk_entry(chunk, dev)
+
         self._flush_chunk_db(dev)
 
         # Update dev.used

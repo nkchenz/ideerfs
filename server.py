@@ -1,6 +1,4 @@
-"""
-Simple TCP server framework
-"""
+"""Simple TCP server framework """
 
 import os
 import socket

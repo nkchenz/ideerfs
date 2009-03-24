@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
-"""
-Chunk server
-"""
+"""Chunk server"""
 
 import config
 from nio_server import *

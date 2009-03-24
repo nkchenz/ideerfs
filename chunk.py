@@ -1,6 +1,4 @@
-"""
-Chunk service
-"""
+"""Chunk service"""
 
 import os
 import time
@@ -26,7 +24,7 @@ class ChunkService(Service):
         self._db = FileDB(config.home)
         self._devices_file = 'exported_devices'
         self._chunk_shard = ChunkShard()
-        self._changed_devices = []
+        self._devices_changed = []
         thread.start_new_thread(self._heartbeat, ())
 
     def _update_devices(self):
@@ -50,7 +48,7 @@ class ChunkService(Service):
         server later in the heartbeat message"""
         # Lock me
         if did not in self._changed_devices:
-            self._changed_devices.append(did)
+            self._devices_changed.append(did)
 
     def write(self, req):
         """Write data to a chunk of version 'req.version', after that increase
@@ -92,8 +90,7 @@ class ChunkService(Service):
         """
         dev = self._lookup_dev(req.did)
         try:
-            c = Chunk(req.chunk)
-            data = self._chunk_shard.load_chunk(c, dev)
+            data = self._chunk_shard.load_chunk(req.chunk, dev)
         except IOError, err:
             self._error(err.message)
 
@@ -116,8 +113,8 @@ class ChunkService(Service):
         nio = NetWorkIO(config.storage_server_address)
         while True:
             # Lock
-            tmp = self.devices_changed
-            self.devices_changed = [] 
+            tmp = self._devices_changed
+            self._devices_changed = []
             confs = {}
             # Unlock
 
@@ -137,7 +134,7 @@ class ChunkService(Service):
                     dev = self._lookup_dev(did)
                 except:
                     continue
-                self._mark_changed(did) 
+                self._mark_changed(did)
                 self._chunk_shard.delete_chunks(chunks, dev)
 
             time.sleep(5)

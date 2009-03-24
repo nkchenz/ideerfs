@@ -1,6 +1,4 @@
-"""
-Network IO server, based on the 'Server' class
-"""
+"""Network IO server, based on the 'Server' class """
 
 import os
 import sys

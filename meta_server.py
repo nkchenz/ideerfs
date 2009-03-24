@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
-"""
-Meta server
-"""
+"""Meta server """
 
 import config
 from nio_server import *

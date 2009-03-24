@@ -1,6 +1,4 @@
-"""
-OnWire protocol
-"""
+"""OnWire protocol """
 
 import pprint
 import socket

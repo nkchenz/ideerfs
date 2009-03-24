@@ -1,10 +1,8 @@
-"""
-Interface for disk device
-"""
+"""Interface for disk device """
 
 import os
 import sys
-import socket
+from socket import gethostname
 import time
 import hashlib
 
@@ -47,8 +45,8 @@ class Dev:
         args.used = 0
         args.status = 'offline'
         args.mode = ''
-        # It's difficult to get a same id again
-        str = '%s %s %s' % (time.time(), socket.gethostname(), args.path)
+        # It's difficult to get the same id again
+        str = '%s %s %s' % (time.time(), gethostname(), args.path)
         args.id = hashlib.sha1(str).hexdigest()
         self.config = args
 

@@ -32,8 +32,8 @@ cache consistency
 notify list
 
 =TODO=
+- object COW
 - space management
-- delete
 - heart beat message
 - hashlist
 - lookaside table cache

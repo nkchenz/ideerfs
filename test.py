@@ -1,8 +1,7 @@
 #!/usr/bin/python
 #coding: utf8
 
-"""
-Simple test script
+"""Simple test script
 
 Run this script directly, after you seeing something like this, 
 

@@ -1,6 +1,4 @@
-"""
-Misc utils
-"""
+"""Misc utils """
 
 import os
 

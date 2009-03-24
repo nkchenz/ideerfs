@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
-"""
-ideer shell
-"""
+"""ideer shell """
 
 import os
 import sys
@@ -19,19 +17,19 @@ controller = {
 }
 
 if len(sys.argv) <= 1 or sys.argv[1] == 'help':
-    print 'usage:', sys.argv[0], '|'.join(subcmds), 'action'
+    print 'Usage:', sys.argv[0], '|'.join(subcmds), 'action'
     sys.exit(-1)
 
 cmd = sys.argv[1]
 if cmd not in controller:
-    print 'unknown cmd', cmd
+    print 'Unknown command', cmd
     sys.exit(-1)
 
 # Set dispatcher and rules for nlp
 nlp = NLParser()
 nlp.set_handler(controller[cmd]())
-input = ' '.join(sys.argv[2:])
+args = ' '.join(sys.argv[2:])
 try:
-    nlp.parse(input)
+    nlp.parse(args)
 except IOError, err:
     print err
