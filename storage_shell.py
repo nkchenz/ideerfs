@@ -53,7 +53,7 @@ class StorageShell:
         if args.type == 'meta':
             shard.create_root_object(args.path)
 
-    def get_chunks(self, dev):
+    def _get_chunks(self, dev):
         """Get chunk list of a device"""
         log('Scanning chunks on ', dev.config.path)
         return dev.load('chunks', {})
@@ -66,13 +66,13 @@ class StorageShell:
             self._devices[id] = dev.config.path # Add entry
         if dev.config.status != 'offline':
             raise IOError('not offline')
-        self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, report = self.get_chunks(dev))
+        self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, report = self._get_chunks(dev))
         dev.config.status = 'online'
         dev.flush()
         self._flush()
         return 'ok'
 
-    def offline(self, req):
+    def offline(self, args):
         """Offline device, data on this device is not available anymore unless
         you online it again. You can decide whether to replicate data first."""
         dev = self._get_device(args.path)
@@ -84,9 +84,12 @@ class StorageShell:
         self._nio.call('storage.offline', did = id, replicate = False)
         dev.config.status = 'offline'
         dev.flush()
+
+        del self._devices[id]
+        self._flush()
         return 'ok'
 
-    def frozen(self, req):
+    def frozen(self, args):
         """Make device readonly"""
         dev = self._get_device(args.path)
         id = dev.config.id

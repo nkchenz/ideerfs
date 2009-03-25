@@ -3,7 +3,6 @@
 import time
 import os
 import hashlib
-from collections import defaultdict
 
 from dev import *
 from oodict import OODict
@@ -137,14 +136,14 @@ class ChunkShard():
     def _load_chunk_db(self, dev):
         did = dev.config.id
         if did not in self.chunks:
-            self.chunks[did] = dev.load(self._chunks_file, defaultdict(dict))
+            self.chunks[did] = dev.load(self._chunks_file, {})
 
     def _insert_chunk_entry(self, chunk, dev):
         """Add one entry for new chunk"""
         # Lockme
         self._load_chunk_db(dev)
         tmp = chunk.fid, chunk.cid
-        if tmp not in self.chunks[did]:
+        if tmp not in self.chunks.setdefault(did, {}):
             self.chunks[did][tmp] = chunk
 
     def _delete_chunk_entry(self, chunk, dev):
@@ -152,7 +151,7 @@ class ChunkShard():
         # Lockme
         self._load_chunk_db(dev)
         tmp = chunk.fid, chunk.cid
-        if tmp in self.chunks[did]:
+        if tmp in self.chunks[dev.config.id]:
             del self.chunks[did][tmp]
 
     def _flush_chunk_db(self, dev):

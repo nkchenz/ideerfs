@@ -144,7 +144,7 @@ class StorageService(Service):
                 old_chunk = chunk
                 old_chunk.version = old_version
                 for did in self._chunks_map[key]['l']:
-                    self._deleted_chunks.set_default(did, []).append(old_chunk)
+                    self._deleted_chunks.setdefault(did, []).append(old_chunk)
                 # Save new
                 self._chunks_map[key]['l'] = set([did])
 
@@ -184,7 +184,7 @@ class StorageService(Service):
             # Found avaiable devices
             for did in self._chunks_map[key]['l']:
                 if self._avaiable(did):
-                    value.set_default(cid, []).append((did, self._devices[did].addr))
+                    value.setdefault(cid, []).append((did, self._devices[did].addr))
 
         return value
     
@@ -219,7 +219,7 @@ class StorageService(Service):
             
         # Update changed devices
         for did, conf in req.confs.items():
-            self._devices.set_default(did, OODict()).conf = conf
+            self._devices.setdefault(did, OODict()).conf = conf
            
         # See whether there are chunks deleted by meta node, belonging to this
         # chunk server
@@ -240,7 +240,7 @@ class StorageService(Service):
         did = req.conf.id
         if did in self._devices:
             self._error('already online')
-        self._devices[did].conf = req.conf
+        self._devices.setdefault(did, OODict()).conf = req.conf
         self._devices[did].addr = req.addr
 
         for key, chunk in req.report.items():

@@ -6,7 +6,7 @@ meta_server_address = ('localhost', 1984)
 storage_server_address = ('localhost', 1985)
 chunk_server_address = ('localhost', 1986)
 
-home = '~/.ideerfs'
+home = '/home/ideer/.ideerfs'
 
 # Where to store the test files?
 root = 'tmp'
