@@ -114,6 +114,10 @@ class StorageShell:
         # offline new_dev with replicate = False
         pass
 
+    def _print_device(self, conf):
+         print '%s %s/%s %d%% %s %s' %(conf.path, byte2size(conf.used), \
+             byte2size(conf.size), conf.used * 100 / conf.size, conf.mode, conf.id)
+
     def status(self, args):
         """Show storage status
         all       status of the global pool
@@ -121,10 +125,17 @@ class StorageShell:
         /data/sda status of a local dev
         """
         if args.path == 'local':
-            print self._devices
+            for did, path in self._devices.items():
+                print did, path
         elif args.path == 'all':
-            print self._nio.call('storage.status')
+            status = self._nio.call('storage.status')
+            for k in status.nodes.keys():
+                node = status.nodes[k]
+                print '%s:%d' % (k[0], k[1]), time.ctime(node.update_time)
+                for did in node.devs:
+                    print '     ',
+                    self._print_device(OODict(status.devices[did].conf))
         else:
             dev = self._get_device(args.path)
-            print dev.config
-        #print '%s %s/%s %d%% %s %s %s' %(dev.path, byte2size(dev.used), byte2size(dev.size), dev.used * 100 / dev.size, dev.status, dev.mode, host)
+            self._print_device(dev.config)
+       

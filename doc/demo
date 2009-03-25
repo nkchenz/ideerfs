@@ -1,0 +1,77 @@
+Create disks
+ideer@ideer:/home/chenz/source/ideerfs$ mkdir tmp
+ideer@ideer:/home/chenz/source/ideerfs$ cd tmp
+ideer@ideer:/home/chenz/source/ideerfs$ mkdir sd1 sd2 sd3 sd4
+ideer@ideer:/home/chenz/source/ideerfs$ cd ..
+
+Format disks
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage format tmp/sd1 size 10g type meta
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage format tmp/sd2 size 10g type chunk
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage format tmp/sd3 size 10g type chunk
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage format tmp/sd4 size 10g type chunk
+
+Start servers, 
+open 3 other terminal tabs, run each command in each tab
+ideer@ideer:/home/chenz/source/ideerfs$ python meta_server.py 
+
+ideer@ideer:/home/chenz/source/ideerfs$ python storage_server.py 
+
+ideer@ideer:/home/chenz/source/ideerfs$ python chunk_server.py 
+
+
+
+Online disks
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage online tmp/sd2
+Scanning chunks on  tmp/sd2
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage online tmp/sd3
+Scanning chunks on  tmp/sd3
+
+
+Play with FS
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs lsdir
+. ..
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs pwd
+
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs cd /
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs pwd
+/
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs mkdir foo bar
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs lsdir
+. .. bar foo
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs store ideer.py a.py
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs lsdir
+. .. a.py bar foo
+ideer@ideer:/home/chenz/source/ideerfs$ ll tmp/sd4/
+CHUNKS/ config  
+ideer@ideer:/home/chenz/source/ideerfs$ ll tmp/sd4/
+CHUNKS/ config  
+ideer@ideer:/home/chenz/source/ideerfs$ ll tmp/sd2/CHUNKS
+总用量 4
+-rw-r--r-- 1 ideer ideer 33555456 2009-03-25 21:16 4.0.1
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs restore a.py ideer.py.new 
+ideer@ideer:/home/chenz/source/ideerfs$ diff ideer.py ideer.py.new 
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs rm a.py
+
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage status all
+localhost:1986 Wed Mar 25 21:58:31 2009
+      tmp/sd2 8.0k/10g 0%  e96b17d7bb77b6bb6bf38fbf52f6627e6ca52be9
+      tmp/sd3 8.0k/10g 0%  75a8a2a418835b5df443c9d56ac23ee27a70cacd
+ideer@ideer:/home/chenz/source/ideerfs$ time ./ideer.py fs store beatles.rar b.bz2
+
+real	0m19.874s
+user	0m0.924s
+sys	0m2.428s
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage status all
+localhost:1986 Wed Mar 25 22:00:36 2009
+      tmp/sd2 269m/10g 2%  e96b17d7bb77b6bb6bf38fbf52f6627e6ca52be9
+      tmp/sd3 269m/10g 2%  75a8a2a418835b5df443c9d56ac23ee27a70cacd
+ideer@ideer:/home/chenz/source/ideerfs$ time ./ideer.py fs rm b.bz2
+ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage status all
+localhost:1986 Wed Mar 25 22:00:41 2009
+      tmp/sd2 8.0k/10g 0%  e96b17d7bb77b6bb6bf38fbf52f6627e6ca52be9
+      tmp/sd3 8.0k/10g 0%  75a8a2a418835b5df443c9d56ac23ee27a70cacd
+ideer@ideer:/home/chenz/source/ideerfs$ ll -h beatles.rar 
+-rw-r--r-- 1 ideer ideer 269M 2009-02-13 13:07 beatles.rar
+
+
+

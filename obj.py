@@ -110,10 +110,7 @@ class ObjectShard():
         return True
 
 class Chunk(OODict):
-    def __init__(self, fid, cid, version):
-        self.fid = fid
-        self.cid = cid
-        self.version = version
+    pass
 
 CHUNK_HEADER_SIZE = 1024
 
@@ -153,8 +150,8 @@ class ChunkShard():
         self._load_chunk_db(dev)
         did = dev.config.id
         tmp = chunk.fid, chunk.cid
-        if tmp in self.chunks[did]:
-            del self.chunks[did][tmp]
+        if tmp in self._chunks[did]:
+            del self._chunks[did][tmp]
 
     def _flush_chunk_db(self, dev):
         dev.store(self._chunks[dev.config.id], self._chunks_file)
@@ -271,8 +268,9 @@ class ChunkShard():
     def delete_chunks(self, chunks, dev):
         """Delete chunk"""
         for chunk in chunks:
-            chunk = OODict(chunk)
+            chunk = Chunk(chunk) # Translate dict to Chunk object
             file = self._get_chunk_path(chunk, dev)
+            debug('Delete', file)
             if not os.path.exists(file):
                 continue
             # Safe delete
@@ -289,4 +287,3 @@ class ChunkShard():
         # Save change to disk
         self._flush_chunk_db(dev)
         dev.flush()
-

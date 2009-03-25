@@ -7,7 +7,6 @@ http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/kfs/KosmosFi
 """
 
 from oodict import *
-from obj import *
 from nio import *
 from util import *
 import config
@@ -239,7 +238,8 @@ class File:
                 loca = self._fs.alloc_chunk(meta.chunk_size, meta.replica_factor)
                 if not loca:
                     raise IOError('storage.alloc no free space')
-                chunk = Chunk(meta.id, cid, 1)
+                chunk = OODict() # No need be a chunk instance, just a dict will be ok
+                chunk.fid, chunk.cid, chunk.version = meta.id, cid, 1
                 chunk.size = meta.chunk_size
             else:
                 # Write old chunk 

@@ -30,6 +30,7 @@ class NIOServer(Server):
                 try:
                     req = read_message(f)
                 except socket.error, err:
+                    # There shall be a BYE message to end connection explicitly 
                     # Let client care about errors, retrans as needed
                     debug(err)
                     break

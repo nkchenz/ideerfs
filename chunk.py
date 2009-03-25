@@ -26,6 +26,7 @@ class ChunkService(Service):
         self._devices_file = 'exported_devices'
         self._chunk_shard = ChunkShard()
         self._devices_changed = []
+        #self._heartbeat()
         thread.start_new_thread(self._heartbeat, ())
 
     def _update_devices(self):
@@ -74,6 +75,7 @@ class ChunkService(Service):
             self._error('no enough space')
 
         try:
+            chunk = Chunk(req.chunk)
             self._chunk_shard.store_chunk(req.chunk, req.offset, req.payload, dev, req.new)
             self._mark_changed(req.did)
         except IOError, err:
@@ -89,7 +91,8 @@ class ChunkService(Service):
         """
         dev = self._lookup_dev(req.did)
         try:
-            data = self._chunk_shard.load_chunk(req.chunk, dev)
+            chunk = Chunk(req.chunk)
+            data = self._chunk_shard.load_chunk(chunk, dev)
         except IOError, err:
             self._error(err.message)
 

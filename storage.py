@@ -3,6 +3,7 @@
 import time
 import random
 
+from obj import *
 from util import *
 from service import *
 from oodict import *
@@ -46,8 +47,9 @@ class StorageService(Service):
         self._db = FileDB(config.home)
         
         # Deleted chunks, indexed by device id, so you can easily get all
-        # deleted chunks on one device
-        self._deleted_chunks = {} # This should be saved on disk too, to survive through crash
+        # deleted chunks on one device. Each dev has a list of chunks.
+        # This should be saved on disk too, to survive through crash
+        self._deleted_chunks = {} 
 
         log('Loading devices cache')
         self._devices_file = 'devices' # Device config and address cache
@@ -123,7 +125,6 @@ class StorageService(Service):
         return value
 
     def _delete_chunks_map_entry(self, chunk):
-        chunk = OODict(chunk)
         key = chunk.fid, chunk.cid
         if key not in self._chunks_map:
             return
@@ -137,7 +138,6 @@ class StorageService(Service):
         """Add chunk replica info to location map
         
         return True if inserted, False if stale """
-        chunk = OODict(chunk)
         key = chunk.fid, chunk.cid
         if key not in self._chunks_map:
             self._chunks_map[key] = {'v': chunk.version, 'l': set([did])}
@@ -164,9 +164,10 @@ class StorageService(Service):
         @chunk
         @dids
         """
+        chunk = Chunk(req.chunk) # Make sure we have a chunk
         stale = []
         for did in req.dids:
-            if not self._insert_chunks_map_entry(req.chunk, did):
+            if not self._insert_chunks_map_entry(chunk, did):
                 stale.append(did)
 
         self._flush()
@@ -175,14 +176,14 @@ class StorageService(Service):
     def search(self, req):
         """Search chunks locations
         
-        @chunks     dict of chunks
+        @chunks     dict of chunks, indexed by cid
         
         return dict of cid: locations. 
         locations is list of tuple (did, addr)
         """
         value = {}
         for cid in req.chunks.keys():
-            chunk = req.chunks[cid]
+            chunk = Chunk(req.chunks[cid])
             key = chunk.fid, chunk.cid
             if key not in self._chunks_map:
                 continue # No replicas 
@@ -205,6 +206,7 @@ class StorageService(Service):
         @deleted        chunk list 
         """
         for chunk in req.deleted:
+            chunk = Chunk(chunk) # Translate dict to Chunk object
             self._delete_chunks_map_entry(chunk)
         self._flush()
         return 'ok'
@@ -264,7 +266,8 @@ class StorageService(Service):
         self._devices[did].addr = req.addr
 
         for key in req.report.keys():
-            self._insert_chunks_map_entry(req.report[key], did)
+            chunk = Chunk(req.report[key])
+            self._insert_chunks_map_entry(chunk, did)
 
         self._update_host(req.addr, did)
 

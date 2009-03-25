@@ -192,7 +192,10 @@ class MetaService(Service):
         
         f.chunks is a dict of cid:chunk
 
-        return chunks that exist, and indexes of first, last chunk
+        return 
+               exist_chunks   dict indexed by cid
+               first          first chunk id
+               last           last chunk id
         """
         f = self._object_shard.load_object(req.fid)
         if f is None or self._isdir(f):
