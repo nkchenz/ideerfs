@@ -110,7 +110,7 @@ class File:
         # If we get file meta here, what shall we do if meta changes in other threads?
         #self.meta = self.fs.get_file_meta(self.name)
                 
-    def close():
+    def close(self):
         """Close file, flush buffers"""
         pass
     
@@ -136,7 +136,7 @@ class File:
                 nio_chunk.close()
                 return payload
             except IOError, err:
-                debug('chunk.read', loca,  chunk, err)
+                debug('read failed', loca,  chunk, err)
         # Fatal error
         raise IOError('no replica available', loca, chunk)
      
@@ -148,12 +148,12 @@ class File:
                 nio_chunk = NetWorkIO(addr)
                 nio_chunk.call('chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new = new)
                 nio_chunk.close()
-                dids.append(dev)
+                dids.append(did)
             except IOError, err:
-                debug('chunk.write', loca,  chunk, err)
+                debug('write failed', loca,  chunk, err)
         
         if not dids:
-            raise IOError('data not written', loca, chunk)
+            raise IOError('data not written')
         return dids
     
  
@@ -224,7 +224,7 @@ class File:
         
         bytes_written = 0
         w_start = offset % meta.chunk_size
-        w_len = meta.chunk_size - w_start 
+        w_len = meta.chunk_size - w_start
         cid = chunks.first
         attrs = OODict()
         while cid <= chunks.last:
@@ -261,7 +261,7 @@ class File:
                 attrs.size = new_size
             if not new:
                 chunk.version += 1 # Update version
-            del chunk.size # We don't want chunk.size be saved in chunk, this is ugly. In fact, chunk is more than a object id than a object
+            del chunk['size'] # We don't want chunk.size be saved in chunk, this is ugly. In fact, chunk is more than a object id than a object
             attrs.chunks = {cid: chunk}
             
             # Update with meta server
@@ -273,4 +273,4 @@ class File:
             w_start = 0
             w_len = meta.chunk_size
             
-        return bytes_written 
+        return bytes_written

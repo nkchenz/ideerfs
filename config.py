@@ -6,7 +6,8 @@ meta_server_address = ('localhost', 1984)
 storage_server_address = ('localhost', 1985)
 chunk_server_address = ('localhost', 1986)
 
-home = '/home/ideer/.ideerfs'
+config_dir = '.ideerfs'
+home = os.path.join(os.getenv('HOME'), config_dir)
 
 # Where to store the test files?
 root = 'tmp'

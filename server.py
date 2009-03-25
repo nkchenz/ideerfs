@@ -51,6 +51,7 @@ class Server:
         # Release port
         self.socket.close()
         print 'Shutdown OK'
+        sys.exit(0) # Exit even if there are active connection threads
 
    
     def daemonize(self):
@@ -58,8 +59,8 @@ class Server:
         if os.fork() > 0:
             sys.exit(0)
         #os.chdir("/") 
-        os.umask(0) 
-        os.setsid() 
+        os.umask(0)
+        os.setsid()
         if os.fork() > 0:
             sys.exit(0)
 

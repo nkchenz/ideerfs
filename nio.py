@@ -58,11 +58,11 @@ class NetWorkIO:
         req._id = self.req_id
         self.req_id += 1
 
-        retry = self.retrys_on_socket_send_error 
+        retry = self.retrys_on_socket_send_error
         while True:
             try:
-                if send_message(self.socket, req):
-                    break
+                send_message(self.socket, req)
+                break
             except socket.error, err:
                 # There must be something wrong with this socket
                 # Create a new one
@@ -76,7 +76,8 @@ class NetWorkIO:
         # Retrans here FIXME
         # What if error happens while read answer? Should we retry?
         # Set a timer here to get ack
-        return read_message(self.socket)
+        msg = read_message(self.socket)
+        return msg
     
     
     def call(self, method, **args):
@@ -88,6 +89,7 @@ class NetWorkIO:
         resp = self.request(req)
         if 'error' in resp:
             raise ResponseError(resp.error)
+
         # Response must have 'value' if not have 'error'
         # What about payload?
         if 'payload' in resp:

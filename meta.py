@@ -92,13 +92,13 @@ class MetaService(Service):
     def set(self, req):
         """Set file attributes
         
-        @file
+        @fid
         @attrs
         
         return 'ok' if success. If any exception raised, 'error' will 
                 be set in the response message 
         """
-        obj = self._lookup(req.file)
+        obj = self._object_shard.load_object(req.fid)
         if not obj:
             self._error('no such file or directory')
         for k,v in req.attrs.items():
@@ -111,7 +111,7 @@ class MetaService(Service):
         self._object_shard.store_object(obj)
         return 'ok'
 
-    def lsdir(self, req): 
+    def lsdir(self, req):
         """Get all the children names of a dir
         
         @dir
@@ -194,7 +194,7 @@ class MetaService(Service):
 
         return chunks that exist, and indexes of first, last chunk
         """
-        f = self._object_shard.load(req.fid)
+        f = self._object_shard.load_object(req.fid)
         if f is None or self._isdir(f):
             self._error('no such file or is a directory' % req.fid)
         

@@ -48,7 +48,11 @@ class FSShell:
         print self._fs.stat(file)
 
     def store(self, args):
-        """Store local file to the fs"""
+        """Store local file to the fs
+
+        @localfile
+        @file
+        """
         src = args.localfile
         if not os.path.exists(src):
             print src, 'not exists'
@@ -64,7 +68,11 @@ class FSShell:
         f.close()
 
     def restore(self, args):
-        """Restore file in the fs to local filesystem"""
+        """Restore file in the fs to local filesystem
+        
+        @file
+        @localfile
+        """
         file = self._normpath(args.file)
         meta = self._fs.stat(file)
         f = self._fs.open(file)

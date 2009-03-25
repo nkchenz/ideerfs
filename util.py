@@ -61,7 +61,7 @@ def filter_req(req):
             tmp[k] = v
     return tmp
 
-def get_realsize(file):
+def get_psize(file):
     """Return the real size of a sparse file"""
     s = os.stat(file)
     if hasattr(s, 'st_blocks'):

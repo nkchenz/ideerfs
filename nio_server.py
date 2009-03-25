@@ -13,9 +13,7 @@ from chunk import ChunkService
 
 
 class NIOServer(Server):
-    """
-    NIO server
-    """
+    """NIO server """
     def __init__(self):
         Server.__init__(self)
         self.services = {}
@@ -29,10 +27,11 @@ class NIOServer(Server):
         f, addr = conn
         print 'Connected from', addr
         while True:
-
-                req = read_message(f)
-                # Let client care about errors, retrans as needed
-                if not req: 
+                try:
+                    req = read_message(f)
+                except socket.error, err:
+                    # Let client care about errors, retrans as needed
+                    debug(err)
                     break
                 
                 debug('Request:', req)
@@ -60,13 +59,13 @@ class NIOServer(Server):
                             r.value = returns
                     except RequestHandleError, err:
                         #print dir(err)
-                        error = err.message
+                        error = err
 
                 if error:
-                    r.error = error
+                    r.error = str(error)
                 r._id = req._id # Response has the same id as request
                 debug('Response:', r)
-                send_message(f, r) 
+                send_message(f, r)
 
         f.close()
         print 'Bye', addr

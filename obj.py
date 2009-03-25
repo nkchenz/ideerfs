@@ -60,9 +60,9 @@ class ObjectShard():
             
         self._objects = self._shard.load(self._objects_file, {})
 
-    def create_root_object(self, path):
+    def format(self, dev):
         """Create root object"""
-        self._shard = Dev(path)
+        self._shard = dev
         if not self._shard.config:
             raise IOError('%s not formatted' % path)
         self._seq = 0
@@ -112,7 +112,7 @@ class ObjectShard():
 class Chunk(OODict):
     def __init__(self, fid, cid, version):
         self.fid = fid
-        self.cid = cif
+        self.cid = cid
         self.version = version
 
 CHUNK_HEADER_SIZE = 1024
@@ -135,27 +135,32 @@ class ChunkShard():
 
     def _load_chunk_db(self, dev):
         did = dev.config.id
-        if did not in self.chunks:
-            self.chunks[did] = dev.load(self._chunks_file, {})
-
+        if did not in self._chunks:
+            self._chunks[did] = dev.load(self._chunks_file, {})
+       
     def _insert_chunk_entry(self, chunk, dev):
         """Add one entry for new chunk"""
         # Lockme
         self._load_chunk_db(dev)
+        did = dev.config.id
         tmp = chunk.fid, chunk.cid
-        if tmp not in self.chunks.setdefault(did, {}):
-            self.chunks[did][tmp] = chunk
+        if tmp not in self._chunks.setdefault(did, {}):
+            self._chunks[did][tmp] = chunk
 
     def _delete_chunk_entry(self, chunk, dev):
         """Add one entry for new chunk"""
         # Lockme
         self._load_chunk_db(dev)
+        did = dev.config.id
         tmp = chunk.fid, chunk.cid
-        if tmp in self.chunks[dev.config.id]:
+        if tmp in self.chunks[did]:
             del self.chunks[did][tmp]
 
     def _flush_chunk_db(self, dev):
-        dev.store(self.chunks[dev.config.id], self._chunks_file)
+        dev.store(self._chunks[dev.config.id], self._chunks_file)
+
+    def format(self, dev):
+        os.mkdir(os.path.join(dev.config.path, 'CHUNKS'))
 
     def load_chunk(self, chunk, dev):
         """Read chunk data from device
@@ -164,33 +169,30 @@ class ChunkShard():
         @version
         @dev
         """
-        file = self.get_chunk_path(chunk, dev)
+        file = self._get_chunk_path(chunk, dev)
         if not os.path.isfile(file):
             raise IOError('chunk lost or stale')
 
         fp = open(file, 'r')
         try:
-            header = eval(fp.read(CHUNK_HEADER_SIZE))
-            if not header:
-               raise
+            header = OODict(eval(fp.read(CHUNK_HEADER_SIZE).strip('\x00')))
         except:
-            fp.close()
+            raise IOError('chunk header corrupt')
+
+        if not header:
             raise IOError('chunk header corrupt')
 
         data = fp.read(header.size)
         if len(data) != header.size:
-            fp.close()
             raise IOError('chunk data lost')
 
-        if header.algo == 'sha1':
-            if hashlib.sha1(data).hexdigest() != header.checksum:
-                fp.close()
-                raise IOError('chunk data corrupt')
+        if header.algo == 'sha1' and hashlib.sha1(data).hexdigest() != header.checksum:
+            raise IOError('chunk data corrupt')
 
         fp.close()
         return data
 
-    def _update_checksum(chunk, offset, data):
+    def _update_checksum(self, chunk, offset, data):
         """Update checksum of a chunk"""
         if offset + len(data) > chunk.size:
             raise IOError('chunk write out of range')
@@ -209,12 +211,14 @@ class ChunkShard():
         @dev
         @new                Is this a new chunk?
         """
-        file = self._get_chunk_filepath(chunk, dev)
+        file = self._get_chunk_path(chunk, dev)
         # Get chunk data
         if new:
             chunk.psize = 0 # Original physical size
             chunk.data = zeros(chunk.size)
-            open(file, 'w').close() # Create new file 
+            f = open(file, 'w') # Create new empty file 
+            f.truncate(CHUNK_HEADER_SIZE + chunk.size)
+            f.close()
         else:
             chunk.data = self.load_chunk(chunk, dev)
 
@@ -236,7 +240,7 @@ class ChunkShard():
         self._insert_chunk_entry(chunk, dev)
         # Rename if needed
         if not new:
-            new_file = self._get_chunk_filepath(chunk, dev)
+            new_file = self._get_chunk_path(chunk, dev)
             os.rename(file, new_file)
             # Delete old version entry, chunk is no use anymore, just minus 1
             # to get old chunk
@@ -248,36 +252,32 @@ class ChunkShard():
         # Update dev.used
         dev.config.used += chunk.psize - old_psize
         dev.flush()
-        return 'ok'
         
-    def _write_chunk_data(file, offset, data):
+    def _write_chunk_data(self, file, offset, data):
         f = open(file, 'rb+') # Update file
         f.seek(offset + CHUNK_HEADER_SIZE)
         f.write(data)
         f.close()
 
-    def _write_chunk_header(file, chunk):
+    def _write_chunk_header(self, file, chunk):
         f = open(file, 'rb+') # Update file
-        del chunk.data
+        del chunk['data'] # Please use key to delete item in dict, not attribute 
         f.write(pformat(chunk)[:CHUNK_HEADER_SIZE]) # Only 1024 for header
         f.close()
 
-    def get_chunk_path(self, chunk, dev):
-        # Because different chunks of same object may exists on same device, chunk
-        # file name must based on both object_id and chunk_id. If multi copies of a 
-        # chunk are allowed to exist on same device too, there shall be something to
-        # differentiate them.
-        return '%s/CHUNKS/%d.%d.%d' % (dev.config.path, chunk.fid, chunk.cid, chunk.version) 
+    def _get_chunk_path(self, chunk, dev):
+        return '%s/CHUNKS/%d.%d.%d' % (dev.config.path, chunk.fid, chunk.cid, chunk.version)
 
     def delete_chunks(self, chunks, dev):
         """Delete chunk"""
         for chunk in chunks:
-            file = self.get_chunk_path(chunk, dev)
+            chunk = OODict(chunk)
+            file = self._get_chunk_path(chunk, dev)
             if not os.path.exists(file):
                 continue
             # Safe delete
             try:
-                dev.config.used -= get_psize(f)
+                dev.config.used -= get_psize(file)
                 os.remove(file)
             except OSError:
                 pass

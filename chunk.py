@@ -40,15 +40,13 @@ class ChunkService(Service):
             self._error('dev not exists')
         # Check disk status
         dev = Dev(self._devices[did])
-        if not dev.config or dev.config.status != 'online':
-            self._error('dev not online')
         return dev
 
     def _mark_changed(self, did):
         """Mark the dev changed, we will update its real used size to storage
         server later in the heartbeat message"""
         # Lock me
-        if did not in self._changed_devices:
+        if did not in self._devices_changed:
             self._devices_changed.append(did)
 
     def write(self, req):
@@ -79,7 +77,7 @@ class ChunkService(Service):
             self._chunk_shard.store_chunk(req.chunk, req.offset, req.payload, dev, req.new)
             self._mark_changed(req.did)
         except IOError, err:
-            self._error(err.message)
+            self._error(err)
         return 'ok'
 
     def read(self, req):

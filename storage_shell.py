@@ -49,9 +49,15 @@ class StorageShell:
         """Format device, create root object if type is meta"""
         dev = Dev(args.path)
         dev.format(args)
-        shard = ObjectShard()
+
+        # Further init 
         if args.type == 'meta':
-            shard.create_root_object(args.path)
+            shard = ObjectShard()
+        if args.type == 'chunk':
+            shard = ChunkShard()
+
+        shard.format(dev)
+ 
 
     def _get_chunks(self, dev):
         """Get chunk list of a device"""
@@ -59,15 +65,18 @@ class StorageShell:
         return dev.load('chunks', {})
 
     def online(self, args):
-        """Online device, send reports to storage server"""
+        """Online device, send reports to storage server
+        The 'online' status information is only maintained by storage server.
+        """
         dev = self._get_device(args.path)
         id = dev.config.id
         if id not in self._devices:
             self._devices[id] = dev.config.path # Add entry
-        if dev.config.status != 'offline':
-            raise IOError('not offline')
+
+        if dev.config.type != 'chunk':
+            raise IOError('wrong type')
+
         self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, report = self._get_chunks(dev))
-        dev.config.status = 'online'
         dev.flush()
         self._flush()
         return 'ok'
@@ -79,10 +88,7 @@ class StorageShell:
         id = dev.config.id
         if id not in self._devices:
             raise IOError('not found')
-        if dev.config.status != 'online':
-            raise IOError('not online')
         self._nio.call('storage.offline', did = id, replicate = False)
-        dev.config.status = 'offline'
         dev.flush()
 
         del self._devices[id]
@@ -95,8 +101,6 @@ class StorageShell:
         id = dev.config.id
         if id not in self._devices:
             raise IOError('not found')
-        if dev.config.status != 'online':
-            raise IOError('not online')
         self._nio.call('storage.frozen', did = id)
         dev.config.mode = 'frozen'
         dev.flush()

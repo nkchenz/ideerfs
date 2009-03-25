@@ -47,11 +47,10 @@ class StorageService(Service):
         
         # Deleted chunks, indexed by device id, so you can easily get all
         # deleted chunks on one device
-        self._deleted_chunks = {} 
-        self._nodes = {} # Nodes Alive info
+        self._deleted_chunks = {} # This should be saved on disk too, to survive through crash
 
-        log('Loading devices')
-        self._devices_file = 'all_devices' # Device config and address cache
+        log('Loading devices cache')
+        self._devices_file = 'devices' # Device config and address cache
         self._devices = self._db.load(self._devices_file, {})
         
         """Chunk location DB, dict.  key is (fid, cid), value is a dict of
@@ -62,14 +61,20 @@ class StorageService(Service):
         self._chunks_map_file = 'chunks_map'
         self._chunks_map = self._db.load(self._chunks_map_file, {})
 
+        log('Loading nodes cache')
+        self._nodes_file = 'nodes'
+        self._nodes = self._db.load(self._nodes_file, {}) # Nodes alive info
+
+
     def _flush(self):
         # This is quite heavy
         self._db.store(self._devices, self._devices_file)
         self._db.store(self._chunks_map, self._chunks_map_file)
+        self._db.store(self._nodes, self._nodes_file)
         
     def _writeable(self, did):
         """Check if a device is writeable"""
-        return self._available(id) and self._devices[did].mode != 'frozen' 
+        return self._available(did) and self._devices[did].conf.mode != 'frozen' 
 
     def _available(self, did):
         """Check if a device is available"""
@@ -106,6 +111,7 @@ class StorageService(Service):
         random.shuffle(dids)
         found = 0
         for did in dids:
+            debug(did, 'alive', self._is_alive(self._devices[did].addr), 'available', self._available(did), 'writable', self._writeable(did), 'free', self._free_enough(did, req.size))
             if self._writeable(did) and self._free_enough(did, req.size):
                 value.append((did, self._devices[did].addr))
                 found += 1
@@ -117,12 +123,13 @@ class StorageService(Service):
         return value
 
     def _delete_chunks_map_entry(self, chunk):
+        chunk = OODict(chunk)
         key = chunk.fid, chunk.cid
         if key not in self._chunks_map:
             return
         # Haven't check version
         for did in self._chunks_map[key]['l']:
-            self._deleted_chunks[did].append(chunk)
+            self._deleted_chunks.setdefault(did, []).append(chunk)
 
         del self._chunks_map[key]
 
@@ -130,6 +137,7 @@ class StorageService(Service):
         """Add chunk replica info to location map
         
         return True if inserted, False if stale """
+        chunk = OODict(chunk)
         key = chunk.fid, chunk.cid
         if key not in self._chunks_map:
             self._chunks_map[key] = {'v': chunk.version, 'l': set([did])}
@@ -158,8 +166,10 @@ class StorageService(Service):
         """
         stale = []
         for did in req.dids:
-            if not self._insert_chunks_map_entry(chunk, did):
+            if not self._insert_chunks_map_entry(req.chunk, did):
                 stale.append(did)
+
+        self._flush()
         return {'stale': stale}
 
     def search(self, req):
@@ -170,8 +180,9 @@ class StorageService(Service):
         return dict of cid: locations. 
         locations is list of tuple (did, addr)
         """
-        value = {} 
-        for cid, chunk in req.chunks.items():
+        value = {}
+        for cid in req.chunks.keys():
+            chunk = req.chunks[cid]
             key = chunk.fid, chunk.cid
             if key not in self._chunks_map:
                 continue # No replicas 
@@ -183,7 +194,7 @@ class StorageService(Service):
            
             # Found avaiable devices
             for did in self._chunks_map[key]['l']:
-                if self._avaiable(did):
+                if self._available(did):
                     value.setdefault(cid, []).append((did, self._devices[did].addr))
 
         return value
@@ -224,10 +235,19 @@ class StorageService(Service):
         # See whether there are chunks deleted by meta node, belonging to this
         # chunk server
         deleted = {}
+        dids_not_exist = []
         for did in self._nodes[req.addr].devs:
             if did in self._deleted_chunks:
                 deleted[did] = self._deleted_chunks[did]
                 del self._deleted_chunks[did]
+            
+            # Clean device list for this host
+            if did not in self._devices:
+                dids_not_exist.append(did)
+
+        for did in dids_not_exist:
+            self._nodes[req.addr].devs.remove(did)
+
         return {'deleted_chunks': deleted}
 
     def online(self, req):
@@ -243,8 +263,8 @@ class StorageService(Service):
         self._devices.setdefault(did, OODict()).conf = req.conf
         self._devices[did].addr = req.addr
 
-        for key, chunk in req.report.items():
-            self._insert_chunks_map_entry(chunk, did)
+        for key in req.report.keys():
+            self._insert_chunks_map_entry(req.report[key], did)
 
         self._update_host(req.addr, did)
 
@@ -253,21 +273,19 @@ class StorageService(Service):
         log('Device %s online' % did)
         return 'ok'
 
+    def _get_device(self, did):
+        if did not in self._devices:
+            self._error('not online')
+        return self._devices[did]
+
     def offline(self, req):
         """Offline device
 
         @did               device id
         @replicate         bool, whether to replicate
         """
-        if req.did not in self._devices:
-            self._error('not online')
-    
-        # Delete device
-        addr = self._devices[req.did].addr
+        dev = self._get_device(req.did)
         del self._devices[req.did]
-        
-        # Remove entry from devices list of host
-        self._nodes[addr].devs.remove(req.did)
         
         # Update location infos for chunks on it
         # chunk -> dev ok
@@ -284,9 +302,8 @@ class StorageService(Service):
         """Frozen device
         @did
         """
-        if req.did not in self._devices:
-            self._error('not online')
-    
+        dev = self._get_device(req.did)
+
         # Should we wait for writings to be finished?
         self._devices[req.did].conf.mode = 'frozen'
 
@@ -296,7 +313,4 @@ class StorageService(Service):
 
     def status(self, req):
         """Get status of the storage system"""
-        return {'devices': self._devices}
-        # Iterate dev cache to get realtime stat here, disk stat is carried with
-        # chunk server's heart-beat message
-        #return  {'summary': self.statistics, 'disks': self.cache}
+        return {'devices': self._devices, 'nodes': self._nodes, 'deleted': self._deleted_chunks, 'map': self._chunks_map}
