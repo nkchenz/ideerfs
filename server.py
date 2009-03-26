@@ -22,12 +22,19 @@ class Server:
     def __init__(self):
         self.shutdown = False
         self.__set_signals()
+        self._pid_file = ''
+
+    def config(self, pid_file):
+        if os.path.exists(pid_file):
+            print 'Pid file exists, already started?'
+            sys.exit(-1)
+        self._pid_file = pid_file
 
     def bind(self, addr):
         """Bind socket"""
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # For socket.error: (98, 'Address already in use')
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind(addr)
         return True
 
@@ -53,7 +60,6 @@ class Server:
         print 'Shutdown OK'
         sys.exit(0) # Exit even if there are active connection threads
 
-   
     def daemonize(self):
         """Switch to background"""
         if os.fork() > 0:
@@ -64,9 +70,14 @@ class Server:
         if os.fork() > 0:
             sys.exit(0)
 
+        if self._pid_file:
+            os.system('echo %d > %s' %(os.getpid(), self._pid_file))
+
     def __cleanup(self, signal, dummy):
         print 'Cleanup'
         self.shutdown = True
+        if self._pid_file and os.path.exists(self._pid_file):
+            os.remove(self._pid_file)
  
     def __set_signals(self):
         signal.signal(signal.SIGTERM, self.__cleanup)
