@@ -7,7 +7,7 @@ import hashlib
 from dev import *
 from oodict import OODict
 import config
-
+from logging import info, debug
 
 class Object(OODict):
     """Object model
@@ -270,7 +270,7 @@ class ChunkShard():
         for chunk in chunks:
             chunk = Chunk(chunk) # Translate dict to Chunk object
             file = self._get_chunk_path(chunk, dev)
-            debug('Delete', file)
+            debug('Delete %s', file)
             if not os.path.exists(file):
                 continue
             # Safe delete

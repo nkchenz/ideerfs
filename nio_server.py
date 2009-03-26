@@ -11,32 +11,30 @@ from meta import MetaService
 from storage import StorageService
 from chunk import ChunkService
 
+from logging import info, debug
 
 class NIOServer(Server):
     """NIO server """
     def __init__(self):
         Server.__init__(self)
         self.services = {}
-        pass
 
     def register(self, name, waiter):
         self.services[name] = waiter
-        debug('%s service registered' % name)
+        debug('%s service registered', name)
 
     def request_handler(self, conn):
         f, addr = conn
-        print 'Connected from', addr
+        debug('Connected from %s', addr)
         while True:
                 try:
                     req = read_message(f)
                 except socket.error, err:
                     # There shall be a BYE message to end connection explicitly 
                     # Let client care about errors, retrans as needed
-                    debug(err)
+                    debug('%s', err)
                     break
-                
-                debug('Request:', req)
-                
+
                 service, method = req.method.split('.')
                 r = OODict()
                 error = ''
@@ -65,8 +63,8 @@ class NIOServer(Server):
                 if error:
                     r.error = str(error)
                 r._id = req._id # Response has the same id as request
-                debug('Response:', r)
+                debug('Request: %s Response: %s', req, r)
                 send_message(f, r)
 
         f.close()
-        print 'Bye', addr
+        debug('Bye %s', addr)

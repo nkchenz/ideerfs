@@ -19,16 +19,15 @@ class Server:
         daemonize
     """
 
-    def __init__(self):
+    def __init__(self, pid_file = ''):
         self.shutdown = False
-        self.__set_signals()
-        self._pid_file = ''
+        self._set_signals()
 
-    def config(self, pid_file):
+    def set_pid_file(self, pid_file):
         if os.path.exists(pid_file):
             print 'Pid file exists, already started?'
             sys.exit(-1)
-        self._pid_file = pid_file
+        self.pid_file = pid_file
 
     def bind(self, addr):
         """Bind socket"""
@@ -39,6 +38,8 @@ class Server:
         return True
 
     def mainloop(self):
+        if self.pid_file:
+            os.system('echo %d > %s' %(os.getpid(), self.pid_file))
         # Dispatcher, check conn pools for readable incoming messages
         self.socket.listen(MAX_WAITING_CLIENTS)
         while True:
@@ -52,7 +53,7 @@ class Server:
                 p.start()
             except socket.error, err:
                 if err[0] == 4:
-                    print 'CTRL+C'
+                    pass # print 'CTRL+C'
                 else:
                     raise
         # Release port
@@ -70,16 +71,15 @@ class Server:
         if os.fork() > 0:
             sys.exit(0)
 
-        if self._pid_file:
-            os.system('echo %d > %s' %(os.getpid(), self._pid_file))
+        # Redirect stdin, stdout, stderr here to null
+        # How to find the tracebacks when server crashes? 
 
     def __cleanup(self, signal, dummy):
-        print 'Cleanup'
         self.shutdown = True
-        if self._pid_file and os.path.exists(self._pid_file):
-            os.remove(self._pid_file)
+        if self.pid_file and os.path.exists(self.pid_file):
+            os.remove(self.pid_file)
  
-    def __set_signals(self):
+    def _set_signals(self):
         signal.signal(signal.SIGTERM, self.__cleanup)
         signal.signal(signal.SIGINT, self.__cleanup)
 

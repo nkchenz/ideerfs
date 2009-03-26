@@ -1,6 +1,8 @@
 """Misc utils """
 
 import os
+import sys
+import logging
 
 # Misc functions
 def size2byte(s):
@@ -41,15 +43,16 @@ def byte2size(n):
 def zeros(n):
     return '\0' * n
 
-def log(*vars):
-    debug(*vars)
-    
-def debug(*vars):
-    for var in vars:
-        if isinstance(var, dict) and 'payload' in var:
-            var = filter_req(var)
-        print str(var),
-    print
+def init_logging(logfile):
+    """Init logger for these servers
+    @logfile
+    """
+    logging.basicConfig(level = logging.DEBUG, format = '%(asctime)s %(levelname)s %(message)s', filename = logfile, filemode = 'a+')
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
 
 def filter_req(req):
     """Filter payload of req, because it's binary. For debug use only"""

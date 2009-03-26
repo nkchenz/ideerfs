@@ -10,6 +10,8 @@ from oodict import *
 from io import *
 import config
 
+from logging import info, debug
+
 class StorageService(Service):
     """Storage management for chunk store
     disk manager:
@@ -49,9 +51,9 @@ class StorageService(Service):
         # Deleted chunks, indexed by device id, so you can easily get all
         # deleted chunks on one device. Each dev has a list of chunks.
         # This should be saved on disk too, to survive through crash
-        self._deleted_chunks = {} 
+        self._deleted_chunks = {}
 
-        log('Loading devices cache')
+        info('Loading devices cache')
         self._devices_file = 'devices' # Device config and address cache
         self._devices = self._db.load(self._devices_file, {})
         
@@ -59,11 +61,11 @@ class StorageService(Service):
         version and locations.
                 (1, 2): {'v': 2, 'l': set([dev1, dev2])}
         """
-        log('Loading chunks location cache')
+        info('Loading chunks location cache')
         self._chunks_map_file = 'chunks_map'
         self._chunks_map = self._db.load(self._chunks_map_file, {})
 
-        log('Loading nodes cache')
+        info('Loading nodes cache')
         self._nodes_file = 'nodes'
         self._nodes = self._db.load(self._nodes_file, {}) # Nodes alive info
 
@@ -105,7 +107,7 @@ class StorageService(Service):
 
         return locations, which is a list of tuple (did, addr)
         """
-        debug('Alloc %s bytes on %d devices' % (req.size, req.n))
+        debug('Alloc %s bytes on %d devices', req.size, req.n)
         
         # Alloc algorithm, better have a list sorted by free space
         value = []
@@ -113,7 +115,7 @@ class StorageService(Service):
         random.shuffle(dids)
         found = 0
         for did in dids:
-            debug(did, 'alive', self._is_alive(self._devices[did].addr), 'available', self._available(did), 'writable', self._writeable(did), 'free', self._free_enough(did, req.size))
+            debug('%s alive %s available %s writable %s free %s', did, self._is_alive(self._devices[did].addr), self._available(did), self._writeable(did), self._free_enough(did, req.size))
             if self._writeable(did) and self._free_enough(did, req.size):
                 value.append((did, self._devices[did].addr))
                 found += 1
@@ -121,7 +123,7 @@ class StorageService(Service):
                     break
         if not found:
             self._error('no dev avaiable') # Find nothing, this should not happen
-        debug(value)
+        debug('%s', value)
         return value
 
     def _delete_chunks_map_entry(self, chunk):
@@ -190,7 +192,7 @@ class StorageService(Service):
             
             version = self._chunks_map[key]['v']
             if chunk.version != version:
-                debug('version mismatch', chunk, version)
+                debug('version mismatch: %s %s', chunk, version)
                 continue # Version error
            
             # Found avaiable devices
@@ -273,7 +275,7 @@ class StorageService(Service):
 
         # Flush
         self._flush()
-        log('Device %s online' % did)
+        info('Device %s online', did)
         return 'ok'
 
     def _get_device(self, did):
@@ -298,7 +300,7 @@ class StorageService(Service):
         #if replicate
 
         self._flush()
-        log('Device %s offline' % req.did)
+        info('Device %s offline', req.did)
         return 'ok'
 
     def frozen(self, req):
@@ -311,7 +313,7 @@ class StorageService(Service):
         self._devices[req.did].conf.mode = 'frozen'
 
         self._flush()
-        log('Device %s frozen' % req.did)
+        info('Device %s frozen', req.did)
         return 'ok'
 
     def status(self, req):

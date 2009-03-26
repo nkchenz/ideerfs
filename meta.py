@@ -13,7 +13,7 @@ from nio import *
 from obj import *
 from service import *
 import config
-
+from logging import info, debug
 
 class MetaService(Service):
     """Filesystem meta interface
@@ -40,7 +40,7 @@ class MetaService(Service):
             return self._object_shard.load_object(self._root)
         names = file.split('/')
         names.pop(0) # Remove
-        debug('Lookup ', file)
+        debug('Lookup %s', file)
         parent_id = self._root
         for name in names:
             parent = self._object_shard.load_object(parent_id)
@@ -49,7 +49,7 @@ class MetaService(Service):
             if name not in parent.children:
                 return None
             id = parent.children[name]
-            debug(name, id)
+            debug('name: %s id: %d', name, id)
             parent_id = id
         return self._object_shard.load_object(id)
         

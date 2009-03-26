@@ -2,7 +2,6 @@ v0
 princple version
 -no transactions
 -no locks
--no use then
 -one meta node, many chunk nodes
 
 v1
@@ -44,7 +43,3 @@ notify list
 - client buffer
 
 --server crash transparent for client
-
-
-remove defaultdict from obj.py
-test storage online, and chunk

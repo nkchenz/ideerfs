@@ -61,7 +61,7 @@ class StorageShell:
 
     def _get_chunks(self, dev):
         """Get chunk list of a device"""
-        log('Scanning chunks on ', dev.config.path)
+        print 'Scanning chunks on ', dev.config.path
         return dev.load('chunks', {})
 
     def online(self, args):

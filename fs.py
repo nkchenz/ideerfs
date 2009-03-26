@@ -10,6 +10,7 @@ from oodict import *
 from nio import *
 from util import *
 import config
+from logging import info, debug
 
 class FileSystem:
     """Filesystem interface at client node
@@ -135,7 +136,7 @@ class File:
                 nio_chunk.close()
                 return payload
             except IOError, err:
-                debug('read failed', loca,  chunk, err)
+                debug('Read failed for chunk %s at %s@%s: %s', chunk, did, addr, err)
         # Fatal error
         raise IOError('no replica available', loca, chunk)
      
@@ -149,7 +150,7 @@ class File:
                 nio_chunk.close()
                 dids.append(did)
             except IOError, err:
-                debug('write failed', loca,  chunk, err)
+                debug('Write failed for chunk %s at %s@%s: %s', chunk, did, addr, err)
         
         if not dids:
             raise IOError('data not written')
