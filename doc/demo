@@ -11,21 +11,15 @@ ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage format tmp/sd3 size 1
 ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage format tmp/sd4 size 10g type chunk
 
 Start servers, 
-open 3 other terminal tabs, run each command in each tab
 ideer@ideer:/home/chenz/source/ideerfs$ python meta_server.py 
-
 ideer@ideer:/home/chenz/source/ideerfs$ python storage_server.py 
-
 ideer@ideer:/home/chenz/source/ideerfs$ python chunk_server.py 
-
-
 
 Online disks
 ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage online tmp/sd2
 Scanning chunks on  tmp/sd2
 ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py storage online tmp/sd3
 Scanning chunks on  tmp/sd3
-
 
 Play with FS
 ideer@ideer:/home/chenz/source/ideerfs$ ./ideer.py fs lsdir

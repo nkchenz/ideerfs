@@ -26,4 +26,11 @@ mkdir
 mkdir foo
 mkdir foo/bar
 rm -r foo
+
+basic fs operations
+
+large size files
+large number files
+server crash
+scale client number
 """
