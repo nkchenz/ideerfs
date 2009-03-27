@@ -18,8 +18,8 @@ from meta import *
 init_logging(os.path.join(config.home, 'meta_server.log'))
 
 server = NIOServer()
+server.daemonize(stdout = '/dev/null')
 server.set_pid_file(os.path.join(config.home, 'meta_server.pid'))
 server.register('meta', MetaService())
 server.bind(config.meta_server_address)
-server.daemonize()
 server.mainloop()

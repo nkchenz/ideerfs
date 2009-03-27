@@ -61,8 +61,10 @@ class Server:
         print 'Shutdown OK'
         sys.exit(0) # Exit even if there are active connection threads
 
-    def daemonize(self):
-        """Switch to background"""
+    def daemonize(self, **files):
+        """Switch to background
+        keyword args: stdin, stdout, stderr
+        """
         if os.fork() > 0:
             sys.exit(0)
         #os.chdir("/") 
@@ -72,7 +74,17 @@ class Server:
             sys.exit(0)
 
         # Redirect stdin, stdout, stderr here to null
-        # How to find the tracebacks when server crashes? 
+        stds = ['stdout', 'stdin', 'stderr']
+        for f in stds:
+            if f not in files:
+                files[f] = '/dev/null'
+
+        inf = file(files['stdin'], 'r')
+        out = file(files['stdout'], 'a+', 0)
+        err = file(files['stderr'], 'a+', 0)
+        os.dup2(inf.fileno(), sys.stdin.fileno())
+        os.dup2(out.fileno(), sys.stdout.fileno())
+        os.dup2(err.fileno(), sys.stderr.fileno())
 
     def __cleanup(self, signal, dummy):
         self.shutdown = True
