@@ -1,0 +1,27 @@
+#!/usr/bin/python
+
+"""Common test configs and functions"""
+
+import os
+import sys
+
+
+# -------------------------------Test config --------------------------------
+# Where to store the test files?
+root = 'tmp'
+# How many chunk devices do you want?
+n_devices = 6
+
+config_home = os.path.expanduser('~/.ideerfs')
+
+def ish(args):
+    run('../ideer.py %s' % (args))
+
+def run(cmd):
+    print '$', cmd
+    try:
+        os.system(cmd)
+        pass
+    except:
+        raise
+        sys.exit(-1)
