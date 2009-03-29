@@ -318,4 +318,4 @@ class StorageService(Service):
 
     def status(self, req):
         """Get status of the storage system"""
-        return {'devices': self._devices, 'nodes': self._nodes, 'deleted': self._deleted_chunks, 'map': self._chunks_map}
+        return {'devices': self._devices, 'nodes': self._nodes}

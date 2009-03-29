@@ -1,0 +1,13 @@
+=TODO=
+- journal and lock
+- meta lookup cache
+- simple mapreduce
+- server crash transparent for client
+- pwd is not multi client safe
+- client buffer
+
+- object COW
+- chunk piping and replicating
+
+flush data into disk periodically. It only reads data, should not effect
+server reponse time. What matters is how to recovery from crash.

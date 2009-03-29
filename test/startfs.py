@@ -8,6 +8,9 @@ import sys
 from tf import *
 
 #------------------------------Prepare for a clean environment-------------------
+
+run('./stopfs.py')
+
 # Generate devices path
 devices = [os.path.join(root, 'sd' + str(x+1)) for x in range(n_devices)]
 # Cleanup test dir

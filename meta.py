@@ -25,6 +25,7 @@ class MetaService(Service):
         self._object_shard =  ObjectShard()
         self._object_shard.load(config.meta_dev)
         self._root = self._object_shard.get_root_object()
+        #self._lookup_cache = {}
             
     def _isdir(self, obj):
         return obj.type == 'dir'
@@ -38,6 +39,11 @@ class MetaService(Service):
         """
         if file == '/':
             return self._object_shard.load_object(self._root)
+        # When a dir is renamed, how to update its children's cache?
+        #if file in self._lookup_cache:
+        #    debug('Found in cache %s', file)
+        #    return self._lookup_cache[file]
+
         names = file.split('/')
         names.pop(0) # Remove
         debug('Lookup %s', file)
@@ -51,7 +57,10 @@ class MetaService(Service):
             id = parent.children[name]
             debug('name: %s id: %d', name, id)
             parent_id = id
-        return self._object_shard.load_object(id)
+        
+        o = self._object_shard.load_object(id)
+        #self._lookup_cache[file] = o
+        return o
         
     def exists(self, req):
         """Check if a file exists
@@ -317,10 +326,10 @@ class MetaService(Service):
         else:
             new_parent = self._lookup(new_parent_name)
             if not new_parent or new_parent.type != 'dir':
-                self._error('no such directory ' + new_parent_name) 
+                self._error('no such directory ' + new_parent_name)
         new_name = os.path.basename(req.new_file)
         if new_name in new_parent.children:
-            self._error('new file exists') 
+            self._error('new file exists')
         
         # Let's begin
         new_parent.children[new_name] = old_parent.children[old_name]

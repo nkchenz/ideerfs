@@ -57,15 +57,34 @@ class FSShell:
         if not os.path.exists(src):
             print src, 'not exists'
             return
+
+        dest = self._normpath(args.file)
+        if os.path.isdir(src):
+            self._copy_dir(src, dest)
+        else:
+            self._copy_file(src, dest)
+
+    def _copy_file(self, src, dest):
+        """Store local file """
         # Read local file
         data = open(src, 'rb').read()
-
         # Create new file and write
-        dest = self._normpath(args.file)
         self._fs.create(dest, replica_factor = 3, chunk_size = 2 ** 25)
         f = self._fs.open(dest)
         f.write(0, data)
         f.close()
+
+    def _copy_dir(self, src, dest):
+        """Store all the things in dir src under dir dest"""
+        self._fs.mkdir(dest)
+        for child in os.listdir(src):
+            sf = os.path.join(src, child)
+            df = os.path.join(dest, child)
+            print sf
+            if os.path.isdir(sf):
+                self._copy_dir(sf, df)
+            else:
+                self._copy_file(sf, df)
 
     def restore(self, args):
         """Restore file in the fs to local filesystem

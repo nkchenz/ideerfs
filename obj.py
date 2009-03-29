@@ -86,6 +86,7 @@ class ObjectShard():
         self._shard.store(self._objects, 'objects')
 
     def create_object(self):
+        """In face it only returns the next object id"""
         if self._seq is None:
             raise IOError('seq file corrupted') # Fatal error
         # Lock

@@ -12,8 +12,6 @@ v1
 -single fs, single dataset and single storage pool
 -1w loc
 
-v2
-
 v3
 -everything is a object
 -every object has a replication factor
@@ -29,17 +27,3 @@ object db
 re-balancing chunk nodes
 cache consistency
 notify list
-
-=TODO=
-- object COW
-- space management
-- heart beat message
-- hashlist
-- lookaside table cache
-
-- *** journal and recovery
-- chunk piping and replicating
-- mapreduce
-- client buffer
-
---server crash transparent for client

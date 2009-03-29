@@ -8,7 +8,7 @@ import sys
 
 # -------------------------------Test config --------------------------------
 # Where to store the test files?
-root = 'tmp'
+root = os.path.join(os.getcwd(), 'tmp')
 # How many chunk devices do you want?
 n_devices = 6
 

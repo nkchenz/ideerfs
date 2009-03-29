@@ -63,7 +63,7 @@ class NIOServer(Server):
                 if error:
                     r.error = str(error)
                 r._id = req._id # Response has the same id as request
-                debug('Request: %s Response: %s', req, r)
+                debug('Request: %s Response: %s', filter_req(req), filter_req(r))
                 send_message(f, r)
 
         f.close()
