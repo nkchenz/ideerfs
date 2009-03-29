@@ -7,9 +7,12 @@ meta_server_address = ('localhost', 1984)
 storage_server_address = ('localhost', 1985)
 chunk_server_address = ('localhost', 1986)
 # Meta device
-meta_dev = 'tmp/sd1'
+meta_dev = '/home/chenz/source/ideerfs/test/tmp/sd1'
 
 
 #--------------No need to change these----------------------------
 config_dir = '.ideerfs'
 home = os.path.join(os.getenv('HOME'), config_dir)
+
+daemon = False #True # Servers run as daemon
+

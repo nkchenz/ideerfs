@@ -9,7 +9,8 @@ from chunk import *
 init_logging(os.path.join(config.home, 'chunk_server.log'))
 server = NIOServer()
 server.set_pid_file(os.path.join(config.home, 'chunk_server.pid'))
-server.daemonize()
+if config.daemon:
+    server.daemonize()
 server.register('chunk', ChunkService())
 server.bind(config.chunk_server_address)
 server.mainloop()

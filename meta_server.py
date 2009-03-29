@@ -19,7 +19,8 @@ init_logging(os.path.join(config.home, 'meta_server.log'))
 
 server = NIOServer()
 server.set_pid_file(os.path.join(config.home, 'meta_server.pid'))
-server.daemonize()
+if config.daemon:
+    server.daemonize()
 server.register('meta', MetaService())
 server.bind(config.meta_server_address)
 server.mainloop()
