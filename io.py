@@ -5,6 +5,8 @@ from pprint import pformat
 
 from oodict import OODict
 
+import cPickle
+
 class FileDB:
     """File store layer"""
     
@@ -17,10 +19,8 @@ class FileDB:
         file = os.path.join(self._root, file)
         if not os.path.exists(file):
             return default
-        content = open(file, 'r').read()
-        if not content: # Empty file
-            return default
-        result = eval(content)
+        f = open(file, 'rb')
+        result = cPickle.load(f)
         if result is None:
             return default
         if isinstance(result, dict):
@@ -35,7 +35,7 @@ class FileDB:
         if not os.path.exists(p):
             os.makedirs(p)
         fp = open(file, 'w+')
-        fp.write(pformat(value))
+        cPickle.dump(value, fp)
         fp.close()
     
     def remove(self, file):

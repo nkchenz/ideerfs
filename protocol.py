@@ -5,6 +5,7 @@ import socket
 from struct import pack, unpack
 from oodict import OODict
 from util import *
+import cPickle
 
 BUFFER_SIZE = 1024 * 1024 * 8 
 # I'm not sure whether buffer is needed here, for sending hundreds of megabytes using one socket.send
@@ -22,7 +23,7 @@ def send_message(f, req):
         del req['payload']
 
     # Generate message body
-    msg_encoded = pprint.pformat(req)
+    msg_encoded = cPickle.dumps(req, cPickle.HIGHEST_PROTOCOL)
 
     # Prepare the data to send
     # version and length
@@ -60,7 +61,7 @@ def read_message(f):
     data = f.recv(length)
     if not data:
         raise socket.error('socket recv error')
-    msg = OODict(eval(data))
+    msg = OODict(cPickle.loads(data))
     if 'payload_length' not in msg: # Simple message
         return msg
     
