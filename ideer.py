@@ -9,6 +9,9 @@ from nlp import NLParser
 import fs_shell
 import job_shell
 import storage_shell
+import config
+from util import *
+
 
 controller = {
 'storage': storage_shell.StorageShell,
@@ -24,6 +27,9 @@ cmd = sys.argv[1]
 if cmd not in controller:
     print 'Unknown command', cmd
     sys.exit(-1)
+
+# Set client debug log
+init_logging(os.path.join(config.home, 'ideer.client.log'))
 
 # Set dispatcher and rules for nlp
 nlp = NLParser()

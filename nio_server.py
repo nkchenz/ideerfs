@@ -7,10 +7,6 @@ from protocol import *
 from util import *
 from exception import *
 
-from meta import MetaService
-from storage import StorageService
-from chunk import ChunkService
-
 from logging import info, debug
 
 class NIOServer(Server):
@@ -34,7 +30,7 @@ class NIOServer(Server):
                     # Let client care about errors, retrans as needed
                     debug('%s', err)
                     break
-
+                
                 service, method = req.method.split('.')
                 r = OODict()
                 error = ''
@@ -66,5 +62,5 @@ class NIOServer(Server):
                 debug('Request: %s Response: %s', filter_req(req), filter_req(r))
                 send_message(f, r)
 
-        f.close()
         debug('Bye %s', addr)
+        f.close()
