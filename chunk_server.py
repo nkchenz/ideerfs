@@ -11,7 +11,11 @@ server = NIOServer()
 server.set_pid_file(os.path.join(config.home, 'chunk_server.pid'))
 if config.daemon:
     server.daemonize()
-server.register('chunk', ChunkService())
-server.bind(config.chunk_server_address)
-server.mainloop()
+try:
+    server.register('chunk', ChunkService())
+    server.bind(config.chunk_server_address)
+    server.mainloop()
+except Exception, err:
+    debug(err)
+    raise
 
