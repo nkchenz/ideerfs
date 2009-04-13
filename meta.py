@@ -7,13 +7,14 @@ Big data chunks are stored to disks directly.
 """
 
 import time
+from logging import info, debug
 
 from util import *
 from nio import *
 from obj import *
 from service import *
 import config
-from logging import info, debug
+from journal import Journal
 
 class MetaService(Service):
     """Filesystem meta interface
@@ -26,6 +27,7 @@ class MetaService(Service):
         self._object_shard.load(config.meta_dev)
         self._root = self._object_shard.get_root_object()
         #self._lookup_cache = {}
+        self.journal = Journal(config.meta_dev)
             
     def _isdir(self, obj):
         return obj.type == 'dir'
@@ -118,6 +120,7 @@ class MetaService(Service):
                 obj[k] = v
         obj.mtime = time.time()
         self._object_shard.store_object(obj)
+        self.journal.append(req)
         return 'ok'
 
     def lsdir(self, req):
@@ -186,7 +189,7 @@ class MetaService(Service):
         # A journal-log should be created in case failure between these two ops
         self._object_shard.store_object(parent)
         self._object_shard.store_object(new_file)
-        
+        self.journal.append(req)
         return id
 
     def get_chunks(self, req):
@@ -291,7 +294,7 @@ class MetaService(Service):
         nio = NetWorkIO(config.storage_server_address)
         nio.call('storage.free', deleted = deleted)
         nio.close()
-
+        self.journal.append(req)
         return 'ok'
     
     
@@ -338,5 +341,6 @@ class MetaService(Service):
         self._object_shard.store_object(old_parent)
         if old_parent_name != new_parent_name:
             self._object_shard.store_object(new_parent)
+        self.journal.append(req)
         return 'ok'
 

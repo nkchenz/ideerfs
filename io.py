@@ -53,3 +53,6 @@ class FileDB:
         fp = open(file, 'a')
         fp.write(value)
         fp.close()
+
+    def getpath(self, file):
+        return os.path.join(self._root, file)
