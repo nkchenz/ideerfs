@@ -27,65 +27,42 @@ from logging import info, debug
 import thread
 import time
 
+from oodict import OODict
 from io import FileDB
 
-
-class CheckPointer:
+class CheckPoint:
 
     def __init__(self, dir):
-        """@dir   path to save journal and CP files """
         self.db = FileDB(dir)
         self.latest = self.db.load('cp')
 
     def set_handler(self, ops):
         self.handler= ops
 
-    def load_cp(self):
-        # Do replay and checkpoint all the journals
-        self.do_CP(self.journal_id + 1, True)
-
-        self.record_id = 0
-        self.journal_id = 0
-        # Lock for journal rollover
-        self.journal_lock = thread.allocate_lock()
-        
-        info('Start new journal')
-        self.open_journal(self.journal_id)
-        info('Start journal rollover thread')
-        thread.start_new_thread(self.rollover, ())
-
     def start(self):
         info('Start checkpoint thread')
         thread.start_new_thread(self.checkpoint, ())
 
-    def get_cp_name(self):
-        return 'cp.%s' % time.strftime('%Y%m%d%H%M%S')
-
-    def open_journal(self, id):
-        self.journal = open(self.get_journal_path(id), 'a+')
-        # Save the journal id, we can safely checkpoint or compact journals older than it
-        self.db.store(id, 'journal_id')
-
-    def get_journal_path(self, id):
-        return self.db.getpath(self.get_journal_name(id))
-
-    def get_journal_name(self, id):
-
     def checkpoint(self):
         """Checkpoint thread"""
         while True:
-            time.sleep(60)
-            self.do_CP(self.journal_id)
+            time.sleep(1800)
+            self.do_CP()
+
+    def get_cp_name(self):
+        return 'cp.%s' % time.strftime('%Y%m%d%H%M%S')
+
+    def get_journal_name(self, id):
+        return 'journal.%d' % id
 
     def save_cp(self, cp):
-        self.cp = cp
         cpfile = self.get_cp_name()
         self.db.store(cp, cpfile)
         self.db.store(cpfile, 'cp')
-        info('New checkpoint %s', cpfile)
+        info('New CP %s created', cpfile)
+        self.cp = cp
 
-    def do_CP(self, id, clear_committed = False):
-        """Checkpoint journals older than id"""
+    def do_CP(self, commit_all = False):
         # Read old cp
         cpfile = self.db.load('cp')
         if not cpfile:
@@ -94,31 +71,50 @@ class CheckPointer:
         if not cp:
             raise IOError('%s corrupted' % cpfile)
 
+        # Using old cp to init meta tree
+        self.cp = cp
+        self.handler.init_tree(self.cp)
+
+        id = self.db.load('journal_id')
+        if id is None: # It's possible that id is 0. Becareful!!!
+            return # All clean, Nothing to replay
+
+        debug('Do CP, journal_id is %d, commit_all %s', id, commit_all)
+        # Whether to checkpoint the last journal
+        if commit_all:
+            id += 1
         # Figure out next journal to checkpoint
         next = cp.committed_journal_id + 1
-        debug('do CP older than journal.%d, next is %d', id, next)
         if next >= id:
             return # Nothing to do
 
         # Replay  journals
-        for id in range(next, id):
-            self.replay(id)
+        for jid in range(next, id):
+            self.replay(jid)
 
         # Save new cp and name link
-        cp.committed_journal_id = id
-        if clear_committed:
+        cp = self.handler.get_tree()
+        cp.committed_journal_id = jid
+        if commit_all:
             cp.committed_journal_id = -1
         self.save_cp(cp)
        
         # Delete old journal files
-        for id in range(next, id + 1):
-            os.remove(self.get_journal_path(id))
+        for jid in range(next, id):
+            os.remove(self.db.getpath(self.get_journal_name(jid)))
 
     def replay(self, id):
-        f = self.get_journal_path(id)
+        name = self.get_journal_name(id)
+        f = self.db.getpath(name)
         if not os.path.exists(f):
             raise IOError('%s missing' % f)
-        info('Replay %s', self.get_journal_name(id))
+        info('Replay %s', name)
+        fp = open(f, 'r')
+        for line in fp.readlines():
+            req = OODict(eval(line))
+            service, method = req.method.split('.')
+            getattr(self.handler, method)(req)
+        fp.close()
 
 
 class Journal:
@@ -166,7 +162,7 @@ class Journal:
         
     def rollover(self):
         while True:
-            time.sleep(10)
+            time.sleep(300)
             self.journal_lock.acquire()
             debug('Rollover journal.%d', self.journal_id)
             self.journal.close() # Close old file

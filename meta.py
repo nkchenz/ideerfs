@@ -26,20 +26,24 @@ class MetaService(Service):
         self._object_shard =  ObjectShard()
         self.mode = 'normal' # Mode is 'replay' if acts as a replay ops
             
-    def init(self, cp):
+    def init_tree(self, cp):
         """Load data in mem from cp"""
         self._object_shard._objects = cp.objects
         self._object_shard._root = cp.root
         self._object_shard._seq = cp.seq
-        self.journal = Journal(config.meta_dev)
+        self._root = cp.root
 
-    def checkpoint(self):
+    def get_tree(self):
         """Prepare data for checkpoint"""
         cp = OODict()
         cp.objects = self._object_shard._objects
         cp.seq = self._object_shard._seq
         cp.root = self._object_shard._root
         return cp
+
+    def log(self, req):
+        if self.mode != 'replay':
+            self.journal.append(req)
 
     def _isdir(self, obj):
         return obj.type == 'dir'
@@ -60,7 +64,7 @@ class MetaService(Service):
 
         names = file.split('/')
         names.pop(0) # Remove
-        debug('Lookup %s', file)
+        #debug('Lookup %s', file)
         parent_id = self._root
         for name in names:
             parent = self._object_shard.load_object(parent_id)
@@ -69,7 +73,7 @@ class MetaService(Service):
             if name not in parent.children:
                 return None
             id = parent.children[name]
-            debug('name: %s id: %d', name, id)
+            #debug('name: %s id: %d', name, id)
             parent_id = id
         
         o = self._object_shard.load_object(id)
@@ -134,10 +138,6 @@ class MetaService(Service):
         self._object_shard.store_object(obj)
         self.log(req)
         return 'ok'
-
-    def log(self, req):
-        if self.mode != 'replay':
-            self.journal.append(req)
 
     def lsdir(self, req):
         """Get all the children names of a dir

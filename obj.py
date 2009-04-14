@@ -8,6 +8,7 @@ from dev import *
 from oodict import OODict
 import config
 from logging import info, debug
+import thread
 
 class Object(OODict):
     """Object model
@@ -42,6 +43,7 @@ class ObjectShard():
         self._seq_file = 'seq'
         self._root_file = 'root'
         self._objects_file = 'objects'
+        self.lock_seq = thread.allocate_lock()
 
     def load(self, path):
         """Load object shard from device"""
@@ -60,14 +62,9 @@ class ObjectShard():
         self._objects = self._shard.load(self._objects_file, {})
 
     def format(self, dev):
-        """Create root object"""
-        self._shard = dev
-        if not self._shard.config:
-            raise IOError('%s not formatted' % path)
-        self.init_tree()
-        self.flush()
+        pass
 
-    def init_tree(self):
+    def create_tree(self):
         """Create a empty new meta tree"""
         self._seq = 0
         self._objects = {}
@@ -84,16 +81,19 @@ class ObjectShard():
 
     def flush(self):
         # Check point here
-        self._shard.store(self._seq, self._seq_file)
-        self._shard.store(self._objects, 'objects')
+        #self._shard.store(self._seq, self._seq_file)
+        #self._shard.store(self._objects, 'objects')
+        pass
 
     def create_object(self):
         """In face it only returns the next object id"""
         if self._seq is None:
             raise IOError('seq file corrupted') # Fatal error
         # Lock
+        self.lock_seq.acquire()
         self._seq += 1
         self.flush()
+        self.lock_seq.release()
         # Release
         return self._seq
     
