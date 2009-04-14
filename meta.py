@@ -24,11 +24,23 @@ class MetaService(Service):
 
     def __init__(self):
         self._object_shard =  ObjectShard()
-        self._object_shard.load(config.meta_dev)
-        self._root = self._object_shard.get_root_object()
-        #self._lookup_cache = {}
-        self.journal = Journal(config.meta_dev)
+        self.mode = 'normal' # Mode is 'replay' if acts as a replay ops
             
+    def init(self, cp):
+        """Load data in mem from cp"""
+        self._object_shard._objects = cp.objects
+        self._object_shard._root = cp.root
+        self._object_shard._seq = cp.seq
+        self.journal = Journal(config.meta_dev)
+
+    def checkpoint(self):
+        """Prepare data for checkpoint"""
+        cp = OODict()
+        cp.objects = self._object_shard._objects
+        cp.seq = self._object_shard._seq
+        cp.root = self._object_shard._root
+        return cp
+
     def _isdir(self, obj):
         return obj.type == 'dir'
 
@@ -120,8 +132,12 @@ class MetaService(Service):
                 obj[k] = v
         obj.mtime = time.time()
         self._object_shard.store_object(obj)
-        self.journal.append(req)
+        self.log(req)
         return 'ok'
+
+    def log(self, req):
+        if self.mode != 'replay':
+            self.journal.append(req)
 
     def lsdir(self, req):
         """Get all the children names of a dir
@@ -189,7 +205,7 @@ class MetaService(Service):
         # A journal-log should be created in case failure between these two ops
         self._object_shard.store_object(parent)
         self._object_shard.store_object(new_file)
-        self.journal.append(req)
+        self.log(req)
         return id
 
     def get_chunks(self, req):
@@ -294,7 +310,7 @@ class MetaService(Service):
         nio = NetWorkIO(config.storage_server_address)
         nio.call('storage.free', deleted = deleted)
         nio.close()
-        self.journal.append(req)
+        self.log(req)
         return 'ok'
     
     
@@ -341,6 +357,6 @@ class MetaService(Service):
         self._object_shard.store_object(old_parent)
         if old_parent_name != new_parent_name:
             self._object_shard.store_object(new_parent)
-        self.journal.append(req)
+        self.log(req)
         return 'ok'
 

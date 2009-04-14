@@ -38,7 +38,6 @@ class ObjectShard():
     objects    all the objects
     root       root object, every object set should have a root
     """
-
     def __init__(self):
         self._seq_file = 'seq'
         self._root_file = 'root'
@@ -65,12 +64,15 @@ class ObjectShard():
         self._shard = dev
         if not self._shard.config:
             raise IOError('%s not formatted' % path)
+        self.init_tree()
+        self.flush()
+
+    def init_tree(self):
+        """Create a empty new meta tree"""
         self._seq = 0
         self._objects = {}
         self._root = self.create_object()
         self.store_object(Object('/', self._root, self._root, 'dir'))
-        self._shard.store(self._root, self._root_file)
-        self.flush()
 
     def get_object_path(self, id):
         """Method to transfer object id to path on disk"""

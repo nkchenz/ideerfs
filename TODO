@@ -9,5 +9,7 @@
 - object COW
 - chunk piping and replicating
 
+- aio, queue and worker model
+
 flush data into disk periodically. It only reads data, should not effect
 server reponse time. What matters is how to recovery from crash.
