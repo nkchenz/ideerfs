@@ -1,15 +1,15 @@
 =TODO=
+
+- server crash transparent for client
+- object COW + cp
+- aio, queue and worker model
+- simple mapreduce
+
 - journal and lock
 - meta lookup cache
-- simple mapreduce
-- server crash transparent for client
 - pwd is not multi client safe
 - client buffer
-
-- object COW
 - chunk piping and replicating
-
-- aio, queue and worker model
 
 flush data into disk periodically. It only reads data, should not effect
 server reponse time. What matters is how to recovery from crash.
