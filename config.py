@@ -13,7 +13,8 @@ meta_dev = '/home/chenz/source/ideerfs/test/tmp/sd1'
 #--------------No need to change these----------------------------
 config_dir = '.ideerfs'
 home = os.path.join(os.getenv('HOME'), config_dir)
-os.makedirs(home)
+if not os.path.exists(home):
+    os.mkdir(home)
 
 daemon = False #True # Servers run as daemon
 

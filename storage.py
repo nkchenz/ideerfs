@@ -4,7 +4,7 @@ import time
 import random
 from threading import Timer
 import zlib
-import cPickle
+from pprint import pformat
 
 from obj import *
 from util import *
@@ -289,7 +289,7 @@ class StorageService(Service):
         self._devices.setdefault(did, OODict()).conf = req.conf
         self._devices[did].addr = req.addr
 
-        report = cPickle.loads(zlib.decompress(req.payload))
+        report = eval(zlib.decompress(req.payload))
         for key in report.keys():
             chunk = Chunk(report[key])
             self._insert_chunks_map_entry(chunk, did)
