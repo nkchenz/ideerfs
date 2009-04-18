@@ -59,12 +59,17 @@ class StorageShell:
             shard = ChunkShard()
 
         shard.format(dev)
- 
 
     def _get_chunks(self, dev):
-        """Get chunk list of a device"""
-        print 'Scanning chunks on ', dev.config.path
-        return dev.load('chunks', {})
+        """Generate chunk reports for device"""
+        info('Scanning chunks on %s', dev.config.path)
+        chunks = {}
+        for name in os.listdir(os.path.join(dev.config.path, 'CHUNKS')):
+            c = Chunk()
+            c.fid, c.cid, c.version = map(int, name.split('.'))
+            chunks[(c.fid, c.cid)] = c
+        info('%d chunks found', len(chunks))
+        return chunks
 
     def online(self, args):
         """Online device, send reports to storage server
