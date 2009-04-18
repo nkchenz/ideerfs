@@ -1,3 +1,5 @@
+import zlib
+import cPickle
 
 from io import *
 from dev import *
@@ -76,7 +78,8 @@ class StorageShell:
         if dev.config.type != 'chunk':
             raise IOError('wrong type')
 
-        self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, report = self._get_chunks(dev))
+        compressed_report = zlib.compress(cPickle.dumps(self._get_chunks(dev)))
+        self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, payload = compressed_report)
         dev.flush()
         self._flush()
         return 'ok'

@@ -2,6 +2,9 @@
 
 import time
 import random
+from threading import Timer
+import zlib
+import cPickle
 
 from obj import *
 from util import *
@@ -43,6 +46,12 @@ class StorageService(Service):
     Namenode exits the Safemode state. It then determines the list of data blocks (if any) that
     still have fewer than the specified number of replicas. The Namenode then replicates these
     blocks to other Datanodes.
+
+
+    silent time: 30s, for chunk servers to send chunk report again
+
+    Chunk location DB is a dict, whose key is (fid, cid), value is a dict of version and locations.
+    ex. (1, 2): {'v': 2, 'l': set([dev1, dev2])}
     """
     
     def __init__(self):
@@ -51,31 +60,26 @@ class StorageService(Service):
         # Deleted chunks, indexed by device id, so you can easily get all
         # deleted chunks on one device. Each dev has a list of chunks.
         # This should be saved on disk too, to survive through crash
-        self._deleted_chunks = {}
+        self._deleted_chunks = self._db.load('deleted_chunks', {})
 
-        info('Loading devices cache')
-        self._devices_file = 'devices' # Device config and address cache
-        self._devices = self._db.load(self._devices_file, {})
-        
-        """Chunk location DB, dict.  key is (fid, cid), value is a dict of
-        version and locations.
-                (1, 2): {'v': 2, 'l': set([dev1, dev2])}
-        """
-        info('Loading chunks location cache')
-        self._chunks_map_file = 'chunks_map'
-        self._chunks_map = self._db.load(self._chunks_map_file, {})
+        # Enter silent mode for 30s, wait for chunk servers to send chunk
+        # reports
+        info('Entering Silent mode')
+        self.silent_mode = True
+        Timer(30, self.enter_normal_mode).start()
 
-        info('Loading nodes cache')
-        self._nodes_file = 'nodes'
-        self._nodes = self._db.load(self._nodes_file, {}) # Nodes alive info
+        self._devices = {}
+        self._chunks_map = {}
+        self._nodes = {} # Nodes alive info
 
+    def enter_normal_mode(self):
+        self.silent_mode = False
+        info('Entering normal mode')
 
     def _flush(self):
-        # This is quite heavy
-        self._db.store(self._devices, self._devices_file)
-        self._db.store(self._chunks_map, self._chunks_map_file)
-        self._db.store(self._nodes, self._nodes_file)
-        
+        # Save self._delete_chunks
+        self._db.store(self._deleted_chunks, 'deleted_chunks')
+
     def _writeable(self, did):
         """Check if a device is writeable"""
         return self._available(did) and self._devices[did].conf.mode != 'frozen' 
@@ -107,6 +111,9 @@ class StorageService(Service):
 
         return locations, which is a list of tuple (did, addr)
         """
+        if self.silent_mode:
+            self._error('silent mode, please try later')
+
         debug('Alloc %s bytes on %d devices', req.size, req.n)
         
         # Alloc algorithm, better have a list sorted by free space
@@ -166,6 +173,9 @@ class StorageService(Service):
         @chunk
         @dids
         """
+        if self.silent_mode:
+            self._error('silent mode, please try later')
+
         chunk = Chunk(req.chunk) # Make sure we have a chunk
         stale = []
         for did in req.dids:
@@ -183,6 +193,9 @@ class StorageService(Service):
         return dict of cid: locations. 
         locations is list of tuple (did, addr)
         """
+        if self.silent_mode:
+            self._error('silent mode, please try later')
+
         value = {}
         for cid in req.chunks.keys():
             chunk = Chunk(req.chunks[cid])
@@ -214,13 +227,15 @@ class StorageService(Service):
         return 'ok'
         
 
-    def _update_host(self, host, did = None):
+    def _update_host(self, host):
         """Update host aliveness, add device entry if given"""
         if host not in self._nodes:
             self._nodes[host] = OODict({'devs': set()})
         self._nodes[host].update_time = time.time()
-        if did:
-            self._nodes[host].devs.add(did)
+
+    def _update_device(self, host, did):
+        self._update_host(host)
+        self._nodes[host].devs.add(did)
 
     def heartbeat(self, req):
         """Update nodes healthy
@@ -230,8 +245,14 @@ class StorageService(Service):
 
         return deleted chunks if have
         """
+        rv = OODict()
+        rv.needreport = False
+        # First time connect, please send your chunkreports to me
+        if req.addr not in self._nodes:
+            rv.needreport = True
+        
         self._update_host(req.addr)
-            
+        
         # Update changed devices
         for did, conf in req.confs.items():
             self._devices.setdefault(did, OODict()).conf = conf
@@ -252,7 +273,8 @@ class StorageService(Service):
         for did in dids_not_exist:
             self._nodes[req.addr].devs.remove(did)
 
-        return {'deleted_chunks': deleted}
+        rv.deleted_chunks = deleted
+        return rv
 
     def online(self, req):
         """Online device
@@ -267,11 +289,12 @@ class StorageService(Service):
         self._devices.setdefault(did, OODict()).conf = req.conf
         self._devices[did].addr = req.addr
 
-        for key in req.report.keys():
-            chunk = Chunk(req.report[key])
+        report = cPickle.loads(zlib.decompress(req.payload))
+        for key in report.keys():
+            chunk = Chunk(report[key])
             self._insert_chunks_map_entry(chunk, did)
 
-        self._update_host(req.addr, did)
+        self._update_device(req.addr, did)
 
         # Flush
         self._flush()
@@ -299,7 +322,6 @@ class StorageService(Service):
         
         #if replicate
 
-        self._flush()
         info('Device %s offline', req.did)
         return 'ok'
 
@@ -312,7 +334,6 @@ class StorageService(Service):
         # Should we wait for writings to be finished?
         self._devices[req.did].conf.mode = 'frozen'
 
-        self._flush()
         info('Device %s frozen', req.did)
         return 'ok'
 

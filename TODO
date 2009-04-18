@@ -4,6 +4,7 @@
 - object COW + cp
 - aio, queue and worker model
 - simple mapreduce
+-socket.recv error retry in nio
 
 - journal and lock
 - meta lookup cache
