@@ -2,13 +2,13 @@
 
 import time
 import os
-import hashlib
+from logging import info, debug
+import thread
+import zlib
 
 from dev import *
 from oodict import OODict
 import config
-from logging import info, debug
-import thread
 
 class Object(OODict):
     """Object model
@@ -162,6 +162,9 @@ class ChunkShard():
         if len(data) != header.size:
             raise IOError('chunk data lost')
 
+        if header.algo == 'adler32' and zlib.adler32(data) != header.checksum:
+            raise IOError('chunk data corrupt')
+
         if header.algo == 'sha1' and hashlib.sha1(data).hexdigest() != header.checksum:
             raise IOError('chunk data corrupt')
 
@@ -175,8 +178,11 @@ class ChunkShard():
         tmp = chunk.data[:offset] + data + chunk.data[offset + len(data):]
         # We do not write tmp back to disk here because in that case chunk
         # file will not be sparse
-        chunk.algo = 'sha1'
-        chunk.checksum = hashlib.sha1(tmp).hexdigest()
+        if chunk.algo == 'sha1':
+            chunk.checksum = hashlib.sha1(tmp).hexdigest()
+
+        if chunk.algo == 'adler32':
+            chunk.checksum = zlib.adler32(tmp)
 
     def store_chunk(self, chunk, offset, data, dev, new = False):
         """Store data to offset of chunk
@@ -203,7 +209,9 @@ class ChunkShard():
             chunk.data = self.load_chunk(chunk, dev)
 
         # Update check sum
-        self._update_checksum(chunk, offset, data)
+        chunk.algo = config.checksum_algo
+        if chunk.algo:
+            self._update_checksum(chunk, offset, data)
         # Write data
         self._write_chunk_data(file, offset, data)
 
