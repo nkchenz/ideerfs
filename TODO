@@ -4,13 +4,16 @@
 - object COW + cp
 - aio, queue and worker model
 - simple mapreduce
--socket.recv error retry in nio
+- socket.recv error retry in nio
 
 - journal and lock
 - meta lookup cache
 - pwd is not multi client safe
 - client buffer
 - chunk piping and replicating
+- optimize for large amount of small files, put them in one chunk
+
+- chunk_server_address 
 
 flush data into disk periodically. It only reads data, should not effect
 server reponse time. What matters is how to recovery from crash.

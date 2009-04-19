@@ -147,5 +147,5 @@ class ChunkService(Service):
     def _send_chunk_reports(self):
         self._update_devices()
         for did, path in self._devices.items():
-            info('online %s %s' % (did, path))
+            info('Onlining %s %s' % (did, path))
             os.system('./ideer.py storage online %s' % path)
