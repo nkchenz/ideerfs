@@ -216,7 +216,7 @@ class MetaService(Service):
         
         @fid
         @offset
-        @length
+        @length     byte at offset included
         
         f.chunks is a dict of cid:chunk
 
@@ -230,8 +230,8 @@ class MetaService(Service):
             self._error('no such file or is a directory' % req.fid)
         
         value = OODict()
-        value.first = req.offset / f.chunk_size
-        value.last = (req.offset + req.length) / f.chunk_size
+        value.first = req.offset / f.chunk_size # Chunk id of first byte
+        value.last = (req.offset + req.length - 1) / f.chunk_size # Chunk id of last byte
         value.exist_chunks = {}
         for cid in range(value.first, value.last + 1):
             if cid in f.chunks:

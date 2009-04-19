@@ -104,8 +104,8 @@ class File:
         self._read_buffer = '' # Client buffer
         self._write_buffer = ''
         
-        # Current position
-        # self._pos = 0
+        # Next byte to read or write
+        self._pos = 0
 
         # If we get file meta here, what shall we do if meta changes in other threads?
         #self.meta = self.fs.get_file_meta(self.name)
@@ -126,7 +126,10 @@ class File:
         
     def flush():
         pass
-         
+
+    def stat(self):
+        return self._fs.stat(self.name)
+
     def _read_chunk(self, chunk, loca, offset, len):
         """Read chunk from replicas"""
         for did, addr in loca:
@@ -157,15 +160,17 @@ class File:
         return dids
     
  
-    def read(self, offset, length):
-        """Read len bytes from offset.
+    def read(self, length = None):
+        """Read len bytes from current pos
 
-        @offset
         @length
 
         May return less than length if EOF is encountered or errors happened
         """        
-        meta = self._fs.stat(self.name)
+        meta = self.stat()
+        if not length:
+            length = meta.size
+        offset = self._pos
         if offset >= meta.size:
             return None # offset outof range
         if length == 0:
@@ -186,7 +191,11 @@ class File:
             # Special case,  for final chunk. Take care when we only have one
             # chunk in the file
             if cid == chunks.last:
-                w_len = (offset + length) % meta.chunk_size
+                tmp = (offset + length) % meta.chunk_size
+                if tmp == 0:
+                    w_len = meta.chunk_size
+                else:
+                    w_len = tmp
  
             # Body
             if cid not in chunks.exist_chunks:
@@ -199,6 +208,7 @@ class File:
 
             # Iterate next
             cid += 1
+            self._pos += w_len
 
             # Set normal case value
             w_start = 0
@@ -206,7 +216,7 @@ class File:
            
         return ''.join(data)
 
-    def write(self, offset, data):
+    def write(self, data):
         """Write data to offset of file
         
         @offset
@@ -216,9 +226,9 @@ class File:
         """
         if not data:
             return 0 # Zero bytes written
-        meta = self._fs.stat(self.name)
+        meta = self.stat()
         length = len(data)
-
+        offset = self._pos
         chunks = self._fs.get_chunks(meta.id, offset, length)
         locations = self._fs.get_chunk_locations(chunks.exist_chunks)
         
@@ -230,7 +240,7 @@ class File:
         while cid <= chunks.last:
 
             if cid == chunks.last: # Final chunk
-                w_len = (offset + length) % meta.chunk_size
+                w_len = length - bytes_written
 
             new = False
             if cid not in chunks.exist_chunks:
@@ -249,20 +259,22 @@ class File:
                     raise IOError('no replica found for chunk', chunk)
                 loca = locations[cid]
             
-            # Write chunk. Perhaps we should seperate creating with writing,
-            # and let chunk servers publish chunks to storage manager 
+            # Write chunk. 
+            # TODO: Seperate creating with writing, and let chunk servers publish chunks to storage manager 
+            #       Check if read, write succeed 
             dids = self._write_chunk(chunk, loca,  w_start, data[bytes_written: bytes_written + w_len], new)
     
             # Update size and chunk location
             # See whether we are writing out of file, update file size if yes
-            bytes_written += w_len
+            bytes_written += w_len # Fixme! We may have problem here if not all w_len bytes are written
+            self._pos += w_len
             new_size = offset + bytes_written
             if new_size > meta.size:
                 meta.size = new_size
                 attrs.size = new_size
             if not new:
                 chunk.version += 1 # Update version
-            del chunk['size'] # We don't want chunk.size be saved in chunk, this is ugly. In fact, chunk is more than a object id than a object
+            del chunk['size'] # We don't want chunk.size be saved in chunk, so ugly. In fact, chunk is just like object id 
             attrs.chunks = {cid: chunk}
             
             # Update with meta server

@@ -67,12 +67,17 @@ class FSShell:
     def _copy_file(self, src, dest):
         """Store local file """
         # Read local file
-        data = open(src, 'rb').read()
-        # Create new file and write
-        self._fs.create(dest, replica_factor = 3, chunk_size = 2 ** 25)
-        f = self._fs.open(dest)
-        f.write(0, data)
-        f.close()
+        sf = open(src, 'rb')
+        self._fs.create(dest, replica_factor = 1, chunk_size = 2 ** 25)
+        df = self._fs.open(dest)
+        buf_size = 2 ** 25
+        while True:
+            data = sf.read(buf_size)
+            if not data:
+                break
+            df.write(data)
+        sf.close()
+        df.close()
 
     def _copy_dir(self, src, dest):
         """Store all the things in dir src under dir dest"""
@@ -92,23 +97,23 @@ class FSShell:
         @file
         @localfile
         """
-        file = self._normpath(args.file)
-        meta = self._fs.stat(file)
-        f = self._fs.open(file)
-        data = f.read(0, meta.size)
-        open(args.localfile, 'w').write(data)
+        src = self._fs.open(self._normpath(args.file))
+        data = src.read()
+        src.close()
+        dest = open(args.localfile, 'w')
+        dest.write(data)
+        dest.close()
 
 
     def cp(self, args):
-        src = self._normpath(args.src)
-        dest = self._normpath(args.dest)
-        meta = self._fs.stat(src)
-        f = self._fs.open(src)
-        data = f.read(0, meta.size)
-
-        self._fs.create(dest, replica_factor = 3, chunk_size = 2 ** 25)
-        f = self._fs.open(dest)
-        f.write(0, data)
+        src = self._fs.open(self._normpath(args.src))
+        destf = self._normpath(args.dest)
+        self._fs.create(destf, replica_factor = 3, chunk_size = 2 ** 25)
+        data = src.read()
+        src.close()
+        dest = self._fs.open(destf)
+        dest.write(data)
+        dest.close()
 
 
     def exists(self, args):
