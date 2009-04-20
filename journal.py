@@ -57,17 +57,17 @@ class CheckPoint:
 
     def save_cp(self, cp):
         cpfile = self.get_cp_name()
-        self.db.store(cp, cpfile)
+        info('Creating new CP %s', cpfile)
+        self.db.store(cp, cpfile, compress = True)
         self.db.store(cpfile, 'cp')
-        info('New CP %s created', cpfile)
         self.cp = cp
 
     def do_CP(self, commit_all = False):
-        # Read old cp
         cpfile = self.db.load('cp')
         if not cpfile:
             raise IOError('cp file not found')
-        cp = self.db.load(cpfile)
+        debug('Loading old CP %s', cpfile)
+        cp = self.db.load(cpfile, compress = True)
         if not cp:
             raise IOError('%s corrupted' % cpfile)
 
@@ -79,7 +79,7 @@ class CheckPoint:
         if id is None: # It's possible that id is 0. Becareful!!!
             return # All clean, Nothing to replay
 
-        debug('Do CP, journal_id is %d, commit_all %s', id, commit_all)
+        debug('journal_id is %d, commit_all %s', id, commit_all)
         # Whether to checkpoint the last journal
         if commit_all:
             id += 1
@@ -108,7 +108,7 @@ class CheckPoint:
         f = self.db.getpath(name)
         if not os.path.exists(f):
             raise IOError('%s missing' % f)
-        info('Replay %s', name)
+        info('Replaying %s', name)
         fp = open(f, 'r')
         for line in fp.readlines():
             req = OODict(eval(line))
@@ -129,9 +129,9 @@ class Journal:
         # Lock for journal rollover
         self.journal_lock = thread.allocate_lock()
         
-        info('Start new journal')
+        info('Starting new journal')
         self.open_journal(self.journal_id)
-        info('Start journal rollover thread')
+        info('Starting journal rollover thread')
         thread.start_new_thread(self.rollover, ())
 
     def open_journal(self, id):
@@ -164,7 +164,7 @@ class Journal:
         while True:
             time.sleep(300)
             self.journal_lock.acquire()
-            debug('Rollover journal.%d', self.journal_id)
+            debug('Rolling over journal.%d', self.journal_id)
             self.journal.close() # Close old file
             self.journal_id += 1 # Increase id
             self.open_journal(self.journal_id) # Open new file

@@ -2,10 +2,11 @@
 
 import os
 from pprint import pformat
+import cPickle
+import gzip
 
 from oodict import OODict
 
-import cPickle
 
 class FileDB:
     """File store layer"""
@@ -13,14 +14,18 @@ class FileDB:
     def __init__(self, root):
         self._root = root
     
-    def load(self, file, default = None):
+    def load(self, file, default = None, compress = False):
         """Load value in file, auto convert dict to OODict, if None
        return default value"""
         file = os.path.join(self._root, file)
         if not os.path.exists(file):
             return default
-        f = open(file, 'rb')
-        result = cPickle.load(f)
+        if not compress:
+            fp = open(file, 'rb')
+        else:
+            fp = gzip.open(file, 'rb')
+        result = cPickle.load(fp)
+        fp.close()
         if result is None:
             return default
         if isinstance(result, dict):
@@ -28,13 +33,16 @@ class FileDB:
         else:
             return result
     
-    def store(self, value, file):
+    def store(self, value, file, compress = False):
         """Store value to file, please check first, make sure you want overwrite """
         file = os.path.join(self._root, file)
         p = os.path.dirname(file)
         if not os.path.exists(p):
             os.makedirs(p)
-        fp = open(file, 'w+')
+        if not compress:
+            fp = open(file, 'w+')
+        else:
+            fp = gzip.open(file, 'wb')
         cPickle.dump(value, fp)
         fp.close()
     

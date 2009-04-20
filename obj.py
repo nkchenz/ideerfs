@@ -2,13 +2,13 @@
 
 import time
 import os
-import hashlib
+from logging import info, debug
+import thread
+import zlib
 
 from dev import *
 from oodict import OODict
 import config
-from logging import info, debug
-import thread
 
 class Object(OODict):
     """Object model
@@ -128,36 +128,12 @@ class ChunkShard():
     chunks          chunks db
     CHUNK/fid.id.version        a data chunk 
     
+    But you can't use self.dev.load('chunks'), self.dev.store(self.chunks,
+    'chunks'), that's too heavy for a db operation like insert or delete.
     """
+
     def __init__(self):
-        self._chunks_file = 'chunks' # Dict of dict
-        self._chunks = {}
-
-    def _load_chunk_db(self, dev):
-        did = dev.config.id
-        if did not in self._chunks:
-            self._chunks[did] = dev.load(self._chunks_file, {})
-       
-    def _insert_chunk_entry(self, chunk, dev):
-        """Add one entry for new chunk"""
-        # Lockme
-        self._load_chunk_db(dev)
-        did = dev.config.id
-        tmp = chunk.fid, chunk.cid
-        if tmp not in self._chunks.setdefault(did, {}):
-            self._chunks[did][tmp] = chunk
-
-    def _delete_chunk_entry(self, chunk, dev):
-        """Add one entry for new chunk"""
-        # Lockme
-        self._load_chunk_db(dev)
-        did = dev.config.id
-        tmp = chunk.fid, chunk.cid
-        if tmp in self._chunks[did]:
-            del self._chunks[did][tmp]
-
-    def _flush_chunk_db(self, dev):
-        dev.store(self._chunks[dev.config.id], self._chunks_file)
+        pass
 
     def format(self, dev):
         os.mkdir(os.path.join(dev.config.path, 'CHUNKS'))
@@ -186,6 +162,9 @@ class ChunkShard():
         if len(data) != header.size:
             raise IOError('chunk data lost')
 
+        if header.algo == 'adler32' and zlib.adler32(data) != header.checksum:
+            raise IOError('chunk data corrupt')
+
         if header.algo == 'sha1' and hashlib.sha1(data).hexdigest() != header.checksum:
             raise IOError('chunk data corrupt')
 
@@ -199,8 +178,11 @@ class ChunkShard():
         tmp = chunk.data[:offset] + data + chunk.data[offset + len(data):]
         # We do not write tmp back to disk here because in that case chunk
         # file will not be sparse
-        chunk.algo = 'sha1'
-        chunk.checksum = hashlib.sha1(tmp).hexdigest()
+        if chunk.algo == 'sha1':
+            chunk.checksum = hashlib.sha1(tmp).hexdigest()
+
+        if chunk.algo == 'adler32':
+            chunk.checksum = zlib.adler32(tmp)
 
     def store_chunk(self, chunk, offset, data, dev, new = False):
         """Store data to offset of chunk
@@ -210,6 +192,10 @@ class ChunkShard():
         @data
         @dev
         @new                Is this a new chunk?
+        
+        It's dangerous to write on the old file. The file will be corrupted if
+        something bad happens in the middle. It's safer to write on a new
+        file, then rename as needed, but need extra io.
         """
         file = self._get_chunk_path(chunk, dev)
         # Get chunk data
@@ -223,7 +209,9 @@ class ChunkShard():
             chunk.data = self.load_chunk(chunk, dev)
 
         # Update check sum
-        self._update_checksum(chunk, offset, data)
+        chunk.algo = config.checksum_algo
+        if chunk.algo:
+            self._update_checksum(chunk, offset, data)
         # Write data
         self._write_chunk_data(file, offset, data)
 
@@ -236,18 +224,10 @@ class ChunkShard():
         # Write header back
         self._write_chunk_header(file, chunk)
 
-        # Add chunk entry
-        self._insert_chunk_entry(chunk, dev)
         # Rename if needed
         if not new:
             new_file = self._get_chunk_path(chunk, dev)
             os.rename(file, new_file)
-            # Delete old version entry, chunk is no use anymore, just minus 1
-            # to get old chunk
-            chunk.version -= 1
-            self._delete_chunk_entry(chunk, dev)
-
-        self._flush_chunk_db(dev)
 
         # Update dev.used
         dev.config.used += chunk.psize - old_psize
@@ -283,10 +263,5 @@ class ChunkShard():
             except OSError:
                 pass
 
-            # Delete chunk entry
-            # Lockme
-            self._delete_chunk_entry(chunk, dev)
-
         # Save change to disk
-        self._flush_chunk_db(dev)
         dev.flush()

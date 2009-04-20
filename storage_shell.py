@@ -1,3 +1,5 @@
+import zlib
+from pprint import pformat
 
 from io import *
 from dev import *
@@ -57,12 +59,17 @@ class StorageShell:
             shard = ChunkShard()
 
         shard.format(dev)
- 
 
     def _get_chunks(self, dev):
-        """Get chunk list of a device"""
-        print 'Scanning chunks on ', dev.config.path
-        return dev.load('chunks', {})
+        """Generate chunk reports for device"""
+        info('Scanning chunks on %s', dev.config.path)
+        chunks = {}
+        for name in os.listdir(os.path.join(dev.config.path, 'CHUNKS')):
+            c = Chunk()
+            c.fid, c.cid, c.version = map(int, name.split('.'))
+            chunks[(c.fid, c.cid)] = c
+        info('%d chunks found', len(chunks))
+        return chunks
 
     def online(self, args):
         """Online device, send reports to storage server
@@ -76,7 +83,8 @@ class StorageShell:
         if dev.config.type != 'chunk':
             raise IOError('wrong type')
 
-        self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, report = self._get_chunks(dev))
+        compressed_report = zlib.compress(pformat(self._get_chunks(dev)))
+        self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, payload = compressed_report)
         dev.flush()
         self._flush()
         return 'ok'

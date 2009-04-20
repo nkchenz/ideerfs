@@ -26,7 +26,7 @@ class ChunkService(Service):
         self._devices_file = 'exported_devices'
         self._chunk_shard = ChunkShard()
         self._devices_changed = []
-        #self._heartbeat()
+
         thread.start_new_thread(self._heartbeat, ())
 
     def _update_devices(self):
@@ -129,6 +129,9 @@ class ChunkService(Service):
                     continue
 
             rc = nio.call('storage.heartbeat', addr = self._addr, confs = confs)
+            if rc.needreport:
+                # Start another thread to send chunk reports
+                thread.start_new_thread(self._send_chunk_reports, ())
 
             # Delete old chunks
             for did, chunks in rc.deleted_chunks.items():
@@ -140,3 +143,9 @@ class ChunkService(Service):
                 self._chunk_shard.delete_chunks(chunks, dev)
 
             time.sleep(5)
+
+    def _send_chunk_reports(self):
+        self._update_devices()
+        for did, path in self._devices.items():
+            info('Onlining %s %s' % (did, path))
+            os.system('./ideer.py storage online %s' % path)
