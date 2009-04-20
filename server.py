@@ -19,9 +19,10 @@ class Server:
         daemonize
     """
 
-    def __init__(self, pid_file = ''):
+    def __init__(self):
         self.shutdown = False
         self._set_signals()
+        self.pid_file = '' 
 
     def set_pid_file(self, pid_file):
         if os.path.exists(pid_file):

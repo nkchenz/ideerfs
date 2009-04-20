@@ -11,5 +11,32 @@
 - client buffer
 - chunk piping and replicating
 
-flush data into disk periodically. It only reads data, should not effect
-server reponse time. What matters is how to recovery from crash.
+
+CheckPoint:
+If you want to flush mem data, you shall acquire a global lock to protect it
+being written, which will hold server from further request processing, that's
+unacceptable.
+
+Current implementation is leaving mem data untouched, load old cp file, replay
+logs and then flush back.
+
+You can't snapshot an object if it's keeping changing, like shooting a moving
+target.
+
+It's different with flushing dirty file pages to disk.
+
+
+epoll:
+Request processing thread shall be very carefully not be blocked on one
+request, waiting for io to be done.
+http://scotdoyle.com/python-epoll-howto.html
+
+Conn:
+  data
+  seq
+  request
+  response
+
+
+aio and callbacks, notify operation done
+
