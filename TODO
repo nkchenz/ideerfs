@@ -1,9 +1,11 @@
 =TODO=
 
+- epoll request processing model
+- stride read and write chunks
+- simple mapreduce
+
 - server crash transparent for client
 - object COW + cp
-- aio, queue and worker model
-- simple mapreduce
 - socket.recv error retry in nio
 
 - journal and lock
@@ -12,9 +14,6 @@
 - client buffer
 - chunk piping and replicating
 - optimize for large amount of small files, put them in one chunk
-
-- chunk_server_address 
-
 
 CheckPoint:
 If you want to flush mem data, you shall acquire a global lock to protect it
