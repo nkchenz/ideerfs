@@ -38,18 +38,14 @@ class Server:
         self.socket.bind(addr)
         return True
 
-    def mainloop(self):
-        if self.pid_file:
-            os.system('echo %d > %s' %(os.getpid(), self.pid_file))
-        # Dispatcher, check conn pools for readable incoming messages
-        self.socket.listen(MAX_WAITING_CLIENTS)
+    def loop(self):
+        """Reimplement this if you want use asynchronous poll or epoll"""
         while True:
             if self.shutdown: # Gracefully shutdown
                 break
             try:
                 conn = self.socket.accept()
                 #self.request_handler(conn) # For debug only
-                #thread.start_new_thread(self.request_handler, (conn,))
                 p = threading.Thread(target = self.request_handler, args = (conn,))
                 p.start()
             except socket.error, err:
@@ -57,6 +53,15 @@ class Server:
                     pass # print 'CTRL+C'
                 else:
                     raise
+ 
+    def mainloop(self):
+        if self.pid_file:
+            os.system('echo %d > %s' %(os.getpid(), self.pid_file))
+        # Dispatcher, check conn pools for readable incoming messages
+        self.socket.listen(MAX_WAITING_CLIENTS)
+
+        self.start_server()
+
         # Release port
         self.socket.close()
         print 'Shutdown OK'
