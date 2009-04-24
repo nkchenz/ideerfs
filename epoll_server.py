@@ -38,11 +38,12 @@ class EPollServer(Server):
                     # Read from fileno
                     
                     # If we have a complete message, submit it to request_queue
+                    self.request_processer.submit(req)
 
                 elif event & select.EPOLLOUT:
                     # Write to fileno
                     
-                    # If a message has been set, remove it from request_queue
+                    # If a message has been send, remove it from request_queue
                     #
 
                     # Bye message?

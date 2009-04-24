@@ -1,4 +1,4 @@
-"""Journal for in memory data structure
+"""Checkpoint for in memory data structure
 
 in-mem data, on-disk journal, and checkpoint files periodically generated
 
@@ -30,7 +30,8 @@ import time
 from oodict import OODict
 from io import FileDB
 
-class CheckPoint:
+class CPProcesser:
+    """CheckPoint Processer"""
 
     def __init__(self, dir):
         self.db = FileDB(dir)
@@ -115,58 +116,4 @@ class CheckPoint:
             service, method = req.method.split('.')
             getattr(self.handler, method)(req)
         fp.close()
-
-
-class Journal:
-    """Journal, start from id 0, and rollover every 300s"""
-    def __init__(self, dir):
-        """
-        @dir   path to save journal and CP files
-        """
-        self.db = FileDB(dir)
-        self.record_id = 0
-        self.journal_id = 0
-        # Lock for journal rollover
-        self.journal_lock = thread.allocate_lock()
-        
-        info('Starting new journal')
-        self.open_journal(self.journal_id)
-        info('Starting journal rollover thread')
-        thread.start_new_thread(self.rollover, ())
-
-    def open_journal(self, id):
-        self.journal = open(self.get_journal_path(id), 'a+')
-        # Save the journal id, we can safely checkpoint or compact journals older than it
-        self.db.store(id, 'journal_id')
-
-    def get_journal_path(self, id):
-        return self.db.getpath(self.get_journal_name(id))
-
-    def get_journal_name(self, id):
-        return 'journal.%d' % id
-            
-    def append(self, record):
-        """Each request is handled by a thread, so we must get a lock here
-        Perhaps we should use only one thread to process requests, the worker-queue model
-
-        # Rollover by journal size?
-        if self.record_id % 10000 == 0:
-            self.rollover()
-        """
-        self.journal_lock.acquire()
-        self.journal.write(str(record) + '\n')
-        self.journal.flush()#Make sure all journals are written to the disk
-        self.journal_lock.release()
-        
-        self.record_id += 1
-        
-    def rollover(self):
-        while True:
-            time.sleep(300)
-            self.journal_lock.acquire()
-            debug('Rolling over journal.%d', self.journal_id)
-            self.journal.close() # Close old file
-            self.journal_id += 1 # Increase id
-            self.open_journal(self.journal_id) # Open new file
-            self.journal_lock.release()
 

@@ -9,6 +9,7 @@ config.home directory:
 
 storage, chunk servers are similar.
 """
+import thread
 
 import config
 from oodict import OODict
@@ -40,13 +41,44 @@ if not cper.latest:
 else:
     cper.do_CP(True)
 
+
+# Create processer for the event processing state machine
+request_processer = RequestProcesser()
+journal_processer = JournalProcesser()
+response_processer = ResponseProcesser()
+
+# Do some init stuff 
+request_processer.ops = meta
+
+# Chain them up
+request_processer.next = journal_processer
+journal_processer.next = response_processer
+
+# OK, start them all
+request_processer.start()
+journal_processer.start()
+response_processer.start()
+
+
+       
+        
+
 # Start checkpoint thread
 cper.start()
+
+request_queue = []
+journal_queue = []
+reponse_queue = []
+clients = {}
+
+
+# Start epoll server
+server.request_processer = request_processer
+server.start()
 
 # Meta + journal + mem + objects: for request processing
 meta = MetaService()
 meta.init_tree(cper.cp)
-meta.journal = Journal(config.meta_dev)
 try:
     server.register('meta', meta)
     server.bind(config.meta_server_address)

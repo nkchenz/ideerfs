@@ -14,7 +14,6 @@ from nio import *
 from obj import *
 from service import *
 import config
-from journal import Journal
 
 class MetaService(Service):
     """Filesystem meta interface
