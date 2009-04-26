@@ -17,7 +17,7 @@ class FileDB:
     def load(self, file, default = None, compress = False):
         """Load value in file, auto convert dict to OODict, if None
        return default value"""
-        file = os.path.join(self._root, file)
+        file = self.getpath(file)
         if not os.path.exists(file):
             return default
         if not compress:
@@ -35,7 +35,7 @@ class FileDB:
     
     def store(self, value, file, compress = False):
         """Store value to file, please check first, make sure you want overwrite """
-        file = os.path.join(self._root, file)
+        file = self.getpath(file)
         p = os.path.dirname(file)
         if not os.path.exists(p):
             os.makedirs(p)
@@ -48,7 +48,7 @@ class FileDB:
     
     def remove(self, file):
         """Remove file"""
-        file = os.path.join(self._root, file)
+        file = self.getpath(file)
         os.remove(file)
         try:
             # Remove empty dirs as more as possible
@@ -57,10 +57,17 @@ class FileDB:
             pass
 
     def append(self, value, file):
-        file = os.path.join(self._root, file)
+        file = self.getpath(file)
         fp = open(file, 'a')
         fp.write(value)
         fp.close()
+
+    def link(self, src, dest, overwrite = False):
+        sf = self.getpath(src)
+        df = self.getpath(dest)
+        if overwrite and os.path.exists(df):
+            os.unlink(df)
+        os.symlink(sf, df)
 
     def getpath(self, file):
         return os.path.join(self._root, file)

@@ -1,25 +1,25 @@
 """Checkpoint for in memory data structure
 
-in-mem data, on-disk journal, and checkpoint files periodically generated
-
+In-mem data, on-disk journal, and checkpoint files periodically generated.
 Journal can only gurrantee ondisk data consistency, but can't protect
 transaction loss
 
-algo:
-replay = cp + all the journals
-cp: name of latest checkpoint file 
-journal_id: current using journal file id
+journal_id: journal file id being used currently
+last_cp: symbol link to the last CP file
 
+algo
+replay:  CP + all the journals except the current one
 pros: no need for lock, parallel with request handling
 cons: double memory use, double request processing
 
-
-another algo:
+algo2
 flush current data to disk directly
 pros: no need to replay journals, only record largest checkpointed journal 
       id, and replay journals which are newer than that when restarting.
 cons: need to acquire lock to protect data being written while checkpointing
 
+algo3
+COW based snapshot
 """
 
 import os
@@ -30,21 +30,19 @@ import time
 from oodict import OODict
 from io import FileDB
 
-class CPProcesser:
+class CheckPointD:
     """CheckPoint Processer"""
 
     def __init__(self, dir):
         self.db = FileDB(dir)
-        self.latest = self.db.load('cp')
-
-    def set_handler(self, ops):
-        self.handler= ops
+        self.last_cp_file = 'last_cp'
 
     def start(self):
+        self.do_CP(True) # Do a initial CP
         info('Start checkpoint thread')
-        thread.start_new_thread(self.checkpoint, ())
+        thread.start_new_thread(self.mainloop, ())
 
-    def checkpoint(self):
+    def mainloop(self):
         """Checkpoint thread"""
         while True:
             time.sleep(1800)
@@ -56,53 +54,57 @@ class CPProcesser:
     def get_journal_name(self, id):
         return 'journal.%d' % id
 
+    def load_cp(self):
+        return self.db.load(self.last_cp_file, compress = True)
+
     def save_cp(self, cp):
-        cpfile = self.get_cp_name()
-        info('Creating new CP %s', cpfile)
-        self.db.store(cp, cpfile, compress = True)
-        self.db.store(cpfile, 'cp')
-        self.cp = cp
+        f = self.get_cp_name()
+        info('Creating new CP %s', f)
+        self.db.store(cp, f, compress = True)
+        self.db.link(f, self.last_cp_file, True)
 
     def do_CP(self, commit_all = False):
-        cpfile = self.db.load('cp')
-        if not cpfile:
-            raise IOError('cp file not found')
-        debug('Loading old CP %s', cpfile)
-        cp = self.db.load(cpfile, compress = True)
-        if not cp:
-            raise IOError('%s corrupted' % cpfile)
+        """If last_cp doesn't exist, try to replay the remain journals. If no
+        journals are found, do nothing. If there are replayed journals, create
+        a CP and remove the journals.
 
-        # Using old cp to init meta tree
-        self.cp = cp
-        self.handler.init_tree(self.cp)
+        Should we raise exception when last_cp is missing?
+        """
 
-        id = self.db.load('journal_id')
-        if id is None: # It's possible that id is 0. Becareful!!!
+        journal_id = self.db.load('journal_id') # The journal which might being written currently
+        if journal_id is None: # It's possible that id is 0. Becareful!!!
             return # All clean, Nothing to replay
 
-        debug('journal_id is %d, commit_all %s', id, commit_all)
-        # Whether to checkpoint the last journal
+        # Load meta image from last_cp
+        old_cp = self.load_cp()
+        self.handler._load_image(old_cp)
+
+        # Whether to replay the last journal
         if commit_all:
-            id += 1
+            journal_id += 1
         # Figure out next journal to checkpoint
-        next = cp.committed_journal_id + 1
-        if next >= id:
+
+        if old_cp:
+            next = old_cp.committed_journal_id + 1
+        else:
+            next = 0
+        if next >= journal_id:
             return # Nothing to do
 
         # Replay  journals
-        for jid in range(next, id):
+        for jid in range(next, journal_id):
             self.replay(jid)
 
         # Save new cp and name link
-        cp = self.handler.get_tree()
-        cp.committed_journal_id = jid
+        new_cp = self.handler._store_image()
+        new_cp.committed_journal_id = jid
         if commit_all:
-            cp.committed_journal_id = -1
-        self.save_cp(cp)
+            new_cp.committed_journal_id = -1
+        self.save_cp(new_cp)
        
         # Delete old journal files
-        for jid in range(next, id):
-            os.remove(self.db.getpath(self.get_journal_name(jid)))
+        for jid in range(next, journal_id):
+            self.db.remove(self.get_journal_name(jid))
 
     def replay(self, id):
         name = self.get_journal_name(id)

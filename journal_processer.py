@@ -36,10 +36,8 @@ class JournalProcesser(Processer):
     def get_journal_path(self, id):
         return self.db.getpath('journal.%d' % id)
 
-    def processing(self, record):
-        """Each request is handled by a thread, so we must get a lock here
-        Perhaps we should use only one thread to process requests, the worker-queue model
-
+    def processing(self, response):
+        """ Journal response._req
         # Rollover by journal size?
         if self.record_id % 10000 == 0:
             self.rollover()
@@ -51,9 +49,10 @@ class JournalProcesser(Processer):
             self.open_journal(self.journal_id) # Open new file
             self.rollover = False
 
-        self.journal.write(str(record) + '\n')
-        self.journal.flush()#Make sure all journals are written to the disk
+        if 'error' not in response: # If error happens, do not journal
+            req = response._req
+            self.journal.write(str(req) + '\n')
+            self.journal.flush()#Make sure all journals are written to the disk
+            self.record_id += 1
         
-        self.record_id += 1
-    
-        return True # Ready to send reponse back 
+        return response # Ready to send reponse back 

@@ -19,16 +19,14 @@ class Server:
         daemonize
     """
 
-    def __init__(self):
+    def __init__(self, addr, pidfile = ''):
         self.shutdown = False
-        self._set_signals()
-        self.pid_file = '' 
-
-    def set_pid_file(self, pid_file):
-        if os.path.exists(pid_file):
+        if os.path.exists(pidfile):
             print 'Pid file exists, already started?'
             sys.exit(-1)
-        self.pid_file = pid_file
+        self.pidfile = pidfile
+        self.addr = addr
+        self._set_signals()
 
     def bind(self, addr):
         """Bind socket"""
@@ -38,7 +36,7 @@ class Server:
         self.socket.bind(addr)
         return True
 
-    def loop(self):
+    def mainloop(self):
         """Reimplement this if you want use asynchronous poll or epoll"""
         while True:
             if self.shutdown: # Gracefully shutdown
@@ -53,19 +51,22 @@ class Server:
                     pass # print 'CTRL+C'
                 else:
                     raise
- 
-    def mainloop(self):
-        if self.pid_file:
-            os.system('echo %d > %s' %(os.getpid(), self.pid_file))
+
+    def start(self):
+        if self.pidfile:
+            os.system('echo %d > %s' %(os.getpid(), self.pidfile))
         # Dispatcher, check conn pools for readable incoming messages
-        self.socket.listen(MAX_WAITING_CLIENTS)
-
-        self.start_server()
-
-        # Release port
-        self.socket.close()
-        print 'Shutdown OK'
-        sys.exit(0) # Exit even if there are active connection threads
+        try:
+            self.bind(self.addr)
+            self.socket.listen(MAX_WAITING_CLIENTS)
+            self.mainloop()
+            # Release port
+            self.socket.close()
+            print 'Shutdown OK'
+            sys.exit(0) # Exit even if there are active connection threads
+        except Exception, err:
+            debug(err)
+            raise
 
     def daemonize(self, **files):
         """Switch to background
@@ -94,8 +95,8 @@ class Server:
 
     def __cleanup(self, signal, dummy):
         self.shutdown = True
-        if self.pid_file and os.path.exists(self.pid_file):
-            os.remove(self.pid_file)
+        if self.pidfile and os.path.exists(self.pidfile):
+            os.remove(self.pidfile)
  
     def _set_signals(self):
         signal.signal(signal.SIGTERM, self.__cleanup)

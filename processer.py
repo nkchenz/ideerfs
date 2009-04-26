@@ -5,10 +5,11 @@ Two basic layers: request, response
 Plugin layers: journal
     worker.request.next = journal
     worker.journal.next = response
+
 """
 
 from journal import  Journal
-from 
+from exception import *
 
 class Processer:
 
@@ -35,7 +36,7 @@ class Processer:
             
             # If we are not the last step, pass item to the next processer
             if self.next:
-                self.next.submit(req) # Pass it to the next processer
+                self.next.submit(result) # Pass result to the next processer
 
     def processing(self, item):
         """Process each item, please reimplement this function
@@ -49,24 +50,52 @@ class Processer:
 
     def submit(self, item):
         self.queue.append(item)
-    
 
 class RequestProcesser(Processer):
 
+    def register_service(self, name, ops):
+        self.services[name] = ops
+
+    def handle_req(self, req):
+        service, method = req.method.split('.')
+        if service not in self.services:
+            raise RequestHandleError('unknown service %s' % service)
+
+        try:
+            handler = getattr(self.services[service], method)
+        except AttributeError:
+            raise RequestHandleError('unknown method %s' % method)
+
+        if not callable(handler):
+            raise RequestHandleError('unknown method %s' % method)
+
+        return handler(req)
+
     def processing(self, req):
+        response = OODict()
+        response._id = req._id
+        
+        try:
+            result = self.handle_req(req) # Must set req._status
+            if result is None:
+                return None # Request not done, need to queue back
+            # For complicated calls, read for example, should return a tuple: value, payload
+            if isinstance(result, tuple):
+                response.value, response.payload = result
+            else:
+                response.value = result
+        except RequestHandleError, err:
+                response.error = str(err)
 
-        # Call metaops to process req
-
-        # metaops may set req.status 
-
-        # journal processer needs req, but response processer needs resp!
-
+        debug('Request: %s Response: %s', filter_req(req), filter_req(response))
+        # Journal processer needs req, but response processer needs resp!
+        response._req = req
         return response
 
 class ResponseProcesser(Processer):
+    """Please set self.handler to the real function sending response to
+    network"""
 
     def processing(self, response):
-        # Processing
-
-        clients.addr.reponse = rep
+        return self.handler(response)
 

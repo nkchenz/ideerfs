@@ -23,26 +23,24 @@ class MetaService(Service):
 
     def __init__(self):
         self._object_shard =  ObjectShard()
-        self.mode = 'normal' # Mode is 'replay' if acts as a replay ops
-            
-    def init_tree(self, cp):
-        """Load data in mem from cp"""
-        self._object_shard._objects = cp.objects
-        self._object_shard._root = cp.root
-        self._object_shard._seq = cp.seq
-        self._root = cp.root
 
-    def get_tree(self):
-        """Prepare data for checkpoint"""
-        cp = OODict()
-        cp.objects = self._object_shard._objects
-        cp.seq = self._object_shard._seq
-        cp.root = self._object_shard._root
-        return cp
+    def _load_image(self, img):
+        """Load data img to mem"""
+        if not img:
+            self._object_shard.create_tree() # Create a empty tree
+        else:
+            self._object_shard._objects = img.objects
+            self._object_shard._root = img.root
+            self._object_shard._seq = img.seq
+            self._root = img.root
 
-    def log(self, req):
-        if self.mode != 'replay':
-            self.journal.append(req)
+    def _store_image(self):
+        """Prepare data img"""
+        img = OODict()
+        img.objects = self._object_shard._objects
+        img.seq = self._object_shard._seq
+        img.root = self._object_shard._root
+        return img
 
     def _isdir(self, obj):
         return obj.type == 'dir'
@@ -75,9 +73,7 @@ class MetaService(Service):
             #debug('name: %s id: %d', name, id)
             parent_id = id
         
-        o = self._object_shard.load_object(id)
-        #self._lookup_cache[file] = o
-        return o
+        return self._object_shard.load_object(id)
         
     def exists(self, req):
         """Check if a file exists
@@ -86,7 +82,8 @@ class MetaService(Service):
         
         return bool
         """
-        if self._lookup(req.file):
+        obj =  self._lookup(req.file)
+        if obj:
             return True
         else:
             return False
@@ -135,8 +132,7 @@ class MetaService(Service):
                 obj[k] = v
         obj.mtime = time.time()
         self._object_shard.store_object(obj)
-        self.log(req)
-        return 'ok'
+        return 'ok' 
 
     def lsdir(self, req):
         """Get all the children names of a dir
@@ -204,7 +200,6 @@ class MetaService(Service):
         # A journal-log should be created in case failure between these two ops
         self._object_shard.store_object(parent)
         self._object_shard.store_object(new_file)
-        self.log(req)
         return id
 
     def get_chunks(self, req):
@@ -309,7 +304,6 @@ class MetaService(Service):
         nio = NetWorkIO(config.storage_server_address)
         nio.call('storage.free', deleted = deleted)
         nio.close()
-        self.log(req)
         return 'ok'
     
     
@@ -356,6 +350,5 @@ class MetaService(Service):
         self._object_shard.store_object(old_parent)
         if old_parent_name != new_parent_name:
             self._object_shard.store_object(new_parent)
-        self.log(req)
         return 'ok'
 

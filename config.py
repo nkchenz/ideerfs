@@ -7,7 +7,7 @@ import socket
 meta_server_address = ('localhost', 1984)
 storage_server_address = ('localhost', 1985)
 # Meta device
-meta_dev = '/home/chenz/workspace/ideerfs/test/tmp/sd1'
+meta_dev = '/home/chenz/source/ideerfs/test/tmp/sd1'
 
 # Chunk checksum algo when updating, only support '', 'adler32', 'sha1'
 # This better be a attribute of file

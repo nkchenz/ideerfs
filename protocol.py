@@ -10,11 +10,8 @@ import cPickle
 BUFFER_SIZE = 1024 * 1024 * 8 
 # I'm not sure whether buffer is needed here, for sending hundreds of megabytes using one socket.send
 
-def send_message(f, req):
-    """Send a packet, put bulk data aka payload at the end
-    
-    return  bytes sent, if error happens, raise socket.error
-    """
+def pack_message(req):
+    """Pack req dict to binary data"""
     # Get payload length
     payload = None
     if 'payload' in req:
@@ -25,8 +22,7 @@ def send_message(f, req):
     # Generate message body
     msg_encoded = cPickle.dumps(req, cPickle.HIGHEST_PROTOCOL)
 
-    # Prepare the data to send
-    # version and length
+    # version, length of message body
     version = 1
     data = pack('!ii', version, len(msg_encoded))
     # message body
@@ -35,6 +31,53 @@ def send_message(f, req):
     if payload:
         data += payload
 
+    return data
+
+def unpack_message_body(data):
+    """Unpack message body from data, set msg._end if we carry payload"""
+    l = len(data)
+    if l < 8:
+        return None # version and length not complete
+
+    ver, length = unpack('!ii', data[:8])
+    msg_end = 8 + length
+    # Read message body
+    if l < msg_end:
+        return None # Message body not complete
+
+    msg = OODict(cPickle.loads(data[8: msg_end]))
+    if 'payload_length' in msg: # For payload
+        msg._end = msg_end
+    return msg
+
+def unpack_payload(data, msg):
+    """Unpack payload from data for msg"""
+    payload_end = msg._end + msg.payload_length
+    if len(data) < payload_end:
+        return None # Payload not complete
+    payload = data[msg._end: payload_end]
+    del msg['_end']
+    del msg['payload_length']
+    return payload
+
+def unpack_message(data):
+    msg = unpack_message_body(data)
+    if msg is None:
+        return None
+    if 'payload_length' not in msg: # Simple message
+        return msg
+    payload = unpack_payload(data, msg)
+    if payload is None:
+        return None
+    msg.payload = payload
+    return msg
+
+def send_message(f, req):
+    """Send a packet, put bulk data aka payload at the end
+    
+    return  bytes sent, if error happens, raise socket.error
+    """
+    data = pack_message(req)
     # Send, socket.send does not guarantee sending all data.
     # There might be socket.error exceptions, upper layer should handle them
     # socket error: broken pipe? closed? reset?
