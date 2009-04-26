@@ -3,8 +3,8 @@
 import os
 import socket
 import sys
-import thread
 import threading
+from logging import info, debug
 
 import signal
 

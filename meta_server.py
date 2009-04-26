@@ -14,13 +14,13 @@ from oodict import OODict
 from meta import *
 from processer import *
 from journal_processer import *
-from cp_processer import *
+from checkpointd import *
 from epoll_server import *
 
 # Set loggers
 init_logging(os.path.join(config.home, 'meta_server.log'))
 
-server = EPollServer(addr = config.meta_server_addr, pidfile = os.path.join(config.home, 'meta_server.pid'))
+server = EPollServer(addr = config.meta_server_address, pidfile = os.path.join(config.home, 'meta_server.pid'))
 # Daemonize server
 if config.daemon:
     server.daemonize()
@@ -33,7 +33,7 @@ cpd.start()
 
 # Create processer for the event processing state machine
 request_processer = RequestProcesser()
-journal_processer = JournalProcesser()
+journal_processer = JournalProcesser(config.meta_dev)
 response_processer = ResponseProcesser()
 
 # Do some init stuff 

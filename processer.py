@@ -8,8 +8,12 @@ Plugin layers: journal
 
 """
 
-from journal import  Journal
+import thread
+from logging import info, debug
+
+from oodict import OODict
 from exception import *
+from util import *
 
 class Processer:
 
@@ -52,6 +56,10 @@ class Processer:
         self.queue.append(item)
 
 class RequestProcesser(Processer):
+
+    def __init__(self):
+        self.services = {}
+        Processer.__init__(self)
 
     def register_service(self, name, ops):
         self.services[name] = ops

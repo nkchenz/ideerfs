@@ -25,20 +25,24 @@ class EPollServer(Server):
             events = epoll.poll(1) # Timeout 1 second
             for fileno, event in events:
                 if fileno == self.socket.fileno(): # New connection on server socket
-                    while True:
-                        sk, addr = self.socket.accept()
-                        sk.setblocking(0) # Non blocking client socket
-                        fn = sk.fileno()
-                        epoll.register(fn, select.EPOLLIN | select.EPOLLOUT) # Poll in or out
+                    try:
+                        while True:
+                            sk, addr = self.socket.accept()
+                            sk.setblocking(0) # Non blocking client socket
+                            fn = sk.fileno()
+                            epoll.register(fn, select.EPOLLIN) # Poll in 
 
-                        # Init conn here
-                        client = OODict()
-                        client.addr = addr
-                        client.sk = sk
-                        client.request = None
-                        client.request_data = ''
-                        client.response = None
-                        self.clients[fn] = client # Using fn as key
+                            # Init conn here
+                            client = OODict()
+                            client.addr = addr
+                            client.sk = sk
+                            client.request = None
+                            client.request_data = ''
+                            client.response = None
+                            self.clients[fn] = client # Using fn as key
+                    except socket.error:
+                        pass
+
 
                 elif event & select.EPOLLIN: # Although it's level triggerred, read or write as more as possible
                     # Read from fileno
@@ -53,7 +57,7 @@ class EPollServer(Server):
                     # to parse message body each time we look for payload
                     if client.request is None: # Parse message body if we dont have one
                         msg = unpack_message_body(client.request_data)
-                        if msg is None
+                        if msg is None:
                             continue # Message body not complete
                         client.request = msg
 
@@ -74,9 +78,14 @@ class EPollServer(Server):
                     client.request = None
                     client.request_data = ''
 
+                    # Wait for response
+                    epoll.modify(fileno, select.EPOLLOUT)
+
                 elif event & select.EPOLLOUT:
                     # Write to fileno
                     client = self.clients[fileno]
+                    if client.response is None: # No response yet
+                        continue
                     try:
                         sent = client.response_sent
                         while True:
@@ -85,6 +94,8 @@ class EPollServer(Server):
                             if client.response_sent >= client.response_len:
                                 # Message sent 
                                 client.response = None
+                                # Wait for response
+                                epoll.modify(fileno, select.EPOLLIN)
                                 break
                     except socket.error:
                         pass

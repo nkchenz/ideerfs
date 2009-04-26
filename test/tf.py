@@ -11,6 +11,7 @@ import sys
 root = os.path.join(os.getcwd(), 'tmp')
 # How many chunk devices do you want?
 n_devices = 6
+devices = [os.path.join(root, 'sd' + str(x+1)) for x in range(n_devices)]
 
 config_home = os.path.expanduser('~/.ideerfs')
 
