@@ -4,6 +4,7 @@ import os
 import select
 from server import Server
 from oodict import OODict
+from protocol import *
 
 BUFFER_SIZE = 1024 * 8
 
@@ -65,7 +66,13 @@ class EPollServer(Server):
                     # Everything is OK now, message body and payload both are complete
                     client.request_data = ''
                     client.request._fn = fileno # Who send this? 
+
+                    # Submit to request queue
                     self.request_processer.submit(client.request)
+
+                    # Init for next message
+                    client.request = None
+                    client.request_data = ''
 
                 elif event & select.EPOLLOUT:
                     # Write to fileno
@@ -97,9 +104,9 @@ class EPollServer(Server):
         fn = response._req._fn
         client = self.clients[fn]
         if client.response: # Last response has not been sent out
-            return None
+            return None # Return None to tell response processer to queue back
         else:
-            del response._req
+            del response['_req']
             client.response = response
             client.response_data = pack_message(response)
             client.response_sent = 0 

@@ -82,8 +82,8 @@ class CheckPointD:
         # Whether to replay the last journal
         if commit_all:
             journal_id += 1
-        # Figure out next journal to checkpoint
 
+        # Figure out next journal to checkpoint
         if old_cp:
             next = old_cp.committed_journal_id + 1
         else:

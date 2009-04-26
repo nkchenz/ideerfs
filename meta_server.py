@@ -41,19 +41,19 @@ meta = MetaService()
 # Load the consistent meta image
 image = cpd.load_cp()
 meta._load_image(image)
+# Tell request processer the meta ops handler
 request_processer.register_service('meta', meta)
+# Tell the server where to submit completed request
 server.request_processer = request_processer
+# Tell responser processer how to send response
 response_processer.handler = server.response_processer_callback
 
 # Chain them up
-request_processer.next = journal_processer
-journal_processer.next = response_processer
+request_processer.next = journal_processer # After a request is processed, journal it
+journal_processer.next = response_processer # After journaled, send response back
 
 # OK, start them all
 request_processer.start()
 journal_processer.start()
 response_processer.start()
-
-# Start epoll server
 server.start()
-

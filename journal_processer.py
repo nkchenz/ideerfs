@@ -37,7 +37,7 @@ class JournalProcesser(Processer):
         return self.db.getpath('journal.%d' % id)
 
     def processing(self, response):
-        """ Journal response._req
+        """ Journal the request operation of response
         # Rollover by journal size?
         if self.record_id % 10000 == 0:
             self.rollover()
