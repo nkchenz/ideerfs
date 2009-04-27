@@ -1,0 +1,22 @@
+python errors:
+
+'self' missing while funciton definition:
+grep 'def ' *.py | grep -v -e self
+
+self.method, method not defined in this class
+
+missing ')' or ':'  grammer error:  
+grep -w 'if\|while\|for\|def' *.py | grep -v ':$'
+
+misspelling, var not assigned and defined in this function.
+
+OODict:
+     del a['k'], not del a.k
+     for k in a.keys():
+    	 v = a[k]
+
+You should be very clear about the types of your args and return values, if any unclear, make sure to design it clearly, at least you could cast them before using.
+
+might be logical error, but this is not very common
+
+good test cases should give pass or fail clearly
