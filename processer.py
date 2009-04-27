@@ -9,6 +9,7 @@ Plugin layers: journal
 """
 
 import thread
+import threading
 from logging import info, debug
 
 from oodict import OODict
@@ -20,19 +21,21 @@ class Processer:
     def __init__(self):
         self.queue = []
         self.next = None # Next processer in the state machine
+        self.queue_empty = threading.Condition()
 
     def start(self):
         thread.start_new_thread(self.mainloop, ())
 
     def mainloop(self):
         while True:
-            try:
-                item = self.queue.pop(0) # Proccessing from head
-            except IndexError:
-                continue # Empty queue
+            self.queue_empty.acquire()
+            while len(self.queue) == 0:
+                self.queue_empty.wait()
+            self.queue_empty.release()
+
+            item = self.queue.pop(0) # Proccessing from head
     
             result = self.processing(item)
-
             # Error happens during processing item, need queue it back
             if result is None:
                 self.submit(item)
@@ -53,7 +56,11 @@ class Processer:
         return item
 
     def submit(self, item):
+        self.queue_empty.acquire()
         self.queue.append(item)
+        self.queue_empty.notify()
+        self.queue_empty.release()
+
 
 class RequestProcesser(Processer):
 
