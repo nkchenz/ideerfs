@@ -11,12 +11,15 @@ import signal
 MAX_WAITING_CLIENTS = 128
 
 class Server:
-    """
-    Simple TCP server framework
+    """Simple TCP server framework
         socket reuse
         threading request handle
         Ctrl+C signals dealing
         daemonize
+
+    Methods for reimplementing:
+        mainloop
+        request_handler
     """
 
     def __init__(self, addr, pidfile = ''):
@@ -60,13 +63,14 @@ class Server:
             self.bind(self.addr)
             self.socket.listen(MAX_WAITING_CLIENTS)
             self.mainloop()
-            # Release port
-            self.socket.close()
-            print 'Shutdown OK'
-            sys.exit(0) # Exit even if there are active connection threads
         except Exception, err:
-            debug(err)
-            raise
+            debug('Server mainloop exception: %s', err)
+        # Release port
+        self.socket.close()
+        if self.pidfile:
+            os.remove(self.pidfile)
+        print 'Shutdown OK'
+        sys.exit(0) # Exit even if there are active connection threads
 
     def daemonize(self, **files):
         """Switch to background

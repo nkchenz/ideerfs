@@ -53,7 +53,9 @@ request_processer.next = journal_processer # After a request is processed, journ
 journal_processer.next = response_processer # After journaled, send response back
 
 # OK, start them all
+info('Starting request processer')
 request_processer.start()
 journal_processer.start()
+info('Starting response processer')
 response_processer.start()
 server.start()

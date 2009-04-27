@@ -102,7 +102,7 @@ class RequestProcesser(Processer):
         except RequestHandleError, err:
                 response.error = str(err)
 
-        debug('Request: %s Response: %s', filter_req(req), filter_req(response))
+        debug('Processed, request: %s response: %s', filter_req(req), filter_req(response))
         # Journal processer needs req, but response processer needs resp!
         response._req = req
         return response
