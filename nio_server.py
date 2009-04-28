@@ -11,9 +11,9 @@ from logging import info, debug
 
 class NIOServer(Server):
     """NIO server """
-    def __init__(self):
-        Server.__init__(self)
+    def __init__(self, addr, pidfile = ''):
         self.services = {}
+        Server.__init__(self, addr, pidfile)
 
     def register(self, name, waiter):
         self.services[name] = waiter

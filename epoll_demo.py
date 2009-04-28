@@ -19,7 +19,7 @@ cs = {}
 en = {}
 data = ''
 while True:
-    #time.sleep(1)
+    time.sleep(1)
     events = epoll.poll(1) # Timeout 1 second
     print 'Polling %d events' % len(events)
     for fileno, event in events:
@@ -29,7 +29,7 @@ while True:
             print addr
             cs[sk.fileno()] = sk
             en[sk.fileno()] = 0
-            epoll.register(sk.fileno(), select.EPOLLIN | select.EPOLLHUP)
+            epoll.register(sk.fileno(), select.EPOLLIN)
 
         elif event & select.EPOLLIN:
             data = cs[fileno].recv(4)
@@ -41,14 +41,13 @@ while True:
                 continue
             en[fileno] = 0
             print 'recv ', data
-            epoll.modify(fileno, select.EPOLLOUT | select.EPOLLHUP)
+            epoll.modify(fileno, select.EPOLLOUT)
         elif event & select.EPOLLOUT:
             print 'send ', data
             cs[fileno].send(data)
             data = ''
-            epoll.modify(fileno, select.EPOLLIN | select.EPOLLHUP)
+            epoll.modify(fileno, select.EPOLLIN)
 
-        elif event & select.EPOLLHUP:
-            print 'hup'
+        elif event & select.EPOLLERR:
+            print 'err'
             epoll.unregister(fileno)
-

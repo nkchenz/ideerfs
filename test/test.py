@@ -12,10 +12,10 @@ from tf import *
 #-------------------------------FS Tests-----------------------------------
 
 N = 1000
+ish('fs rm -r /test-create')
 ish('fs mkdir /test-create')
 ish('fs cd /test-create')
 for n in range(0, N):
-    ish('fs mkdir d%d' % n)
     ish('fs touch f%d' % n)
 
 
