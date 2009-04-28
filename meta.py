@@ -28,6 +28,7 @@ class MetaService(Service):
         """Load data img to mem"""
         if not img:
             self._object_shard.create_tree() # Create a empty tree
+            self._root = self._object_shard.get_root_object()
         else:
             self._object_shard._objects = img.objects
             self._object_shard._root = img.root
