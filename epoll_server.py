@@ -25,6 +25,7 @@ class EPollServer(Server):
             client.sk = sk
             client.request = None
             client.request_data = ''
+            client.wrong_epollin_events = 0
             client.response = None
             self.clients[sk.fileno()] = client # Using fn as key
             debug('%s connected', addr)
@@ -61,13 +62,22 @@ class EPollServer(Server):
     def epoll_in(self, fileno):
         # Read from fileno
         client = self.clients[fileno]
+        data = ''
         try:
             while True:
-                client.request_data += client.sk.recv(BUFFER_SIZE)
+                data += client.sk.recv(BUFFER_SIZE)
         except socket.error, err:
             debug('Epoll in: %s', err)
             pass
        
+        if not data:
+            client.wrong_epollin_events += 1
+            if client.wrong_epollin_events > 3:
+                self.epoll_hup(fileno)
+            return
+        client.wrong_epollin_events = 0
+        client.request_data += data
+
         # It's a little bit complicated here because we don't want
         # to parse message body each time we look for payload
         if client.request is None: # Parse message body if we dont have one
@@ -115,10 +125,10 @@ class EPollServer(Server):
     def epoll_hup(self, fileno):
         # Remote shutdown
         self.epoll.unregister(fileno)
-        #client = self.clients[fileno]
-        #debug('%s closed', client.addr)
-        #client.sk.close()
-        #del self.clients[fileno]
+        client = self.clients[fileno]
+        debug('%s closed', client.addr)
+        client.sk.close()
+        del self.clients[fileno]
 
     def response_processer_callback(self, response):
         """Send response to network"""
