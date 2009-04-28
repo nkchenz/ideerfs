@@ -16,9 +16,10 @@ epoll = select.epoll()
 epoll.register(s.fileno(), select.EPOLLIN) # Level triggerred
 
 cs = {}
+en = {}
 data = ''
 while True:
-    time.sleep(1)
+    #time.sleep(1)
     events = epoll.poll(1) # Timeout 1 second
     print 'Polling %d events' % len(events)
     for fileno, event in events:
@@ -27,17 +28,25 @@ while True:
             sk.setblocking(0)
             print addr
             cs[sk.fileno()] = sk
-            epoll.register(sk.fileno(), select.EPOLLIN)
+            en[sk.fileno()] = 0
+            epoll.register(sk.fileno(), select.EPOLLIN | select.EPOLLHUP)
 
         elif event & select.EPOLLIN:
             data = cs[fileno].recv(4)
+            if not data:
+                en[fileno] += 1
+                if en[fileno] >= 3:
+                    print 'closed'
+                    epoll.unregister(fileno)
+                continue
+            en[fileno] = 0
             print 'recv ', data
-            epoll.modify(fileno, select.EPOLLOUT)
+            epoll.modify(fileno, select.EPOLLOUT | select.EPOLLHUP)
         elif event & select.EPOLLOUT:
             print 'send ', data
             cs[fileno].send(data)
             data = ''
-            epoll.modify(fileno, select.EPOLLIN)
+            epoll.modify(fileno, select.EPOLLIN | select.EPOLLHUP)
 
         elif event & select.EPOLLHUP:
             print 'hup'
