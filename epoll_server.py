@@ -14,8 +14,16 @@ BUFFER_SIZE = 1024 * 8
 class EPollServer(Server):
 
     def accept_clients(self):
+        """Exception will be raised if there are no more connections to
+        accept:
+            [Errno 11] Resource temporarily unavailable
+        """
         while True:
             sk, addr = self.socket.accept()
+
+            if not sk or not addr:
+                break # No more connections
+
             sk.setblocking(0) # Non blocking client socket
             self.epoll.register(sk.fileno(), select.EPOLLIN) # Poll in 
 
@@ -41,7 +49,6 @@ class EPollServer(Server):
             if self.shutdown: # Gracefully shutdown
                 break
             events = self.epoll.poll(1) # Timeout 1 second
-            debug('Polling %d events', len(events))
             for fileno, event in events:
                 try:
                     if fileno == self.socket.fileno(): # New connection on server socket
@@ -52,8 +59,12 @@ class EPollServer(Server):
                         self.epoll_out(fileno)
                     elif event & select.EPOLLHUP:
                         self.epoll_hup(fileno)
-                except socket.error:
-                    pass
+                except socket.error, err:
+                    debug('epoll event exception: %s', err)
+                    if err.errno == 11: # Catch the Errno
+                        pass
+                    else:
+                        raise
 
         self.epoll.unregister(self.socket.fileno())
         self.epoll.close()
@@ -63,16 +74,33 @@ class EPollServer(Server):
         # Read from fileno
         client = self.clients[fileno]
         data = ''
+        # You will get 'Resource temporarily unavailable' exception as
+        # expected if there is no more data while the connection is active.
+
+        # But be very careful that there will be NO exceptions raised and
+        # NO ERR or HUP events generated if you still recv or send after 
+        # client side closed the connection.
+
+        # You should figure out a way to unregister fileno of this
+        # connection, or you will be flooded by dead empty events.
+        
+        # Read until no more data is available
         try:
             while True:
-                data += client.sk.recv(BUFFER_SIZE)
+                tmp = client.sk.recv(BUFFER_SIZE)
+                if not tmp:
+                    break
+                data += tmp
         except socket.error, err:
-            debug('Epoll in: %s', err)
-            pass
-       
+            if err.errno == 11:
+                pass # Exception 11 is catched here because we need to save and parse received data
+            else:
+                raise
+
         if not data:
             client.wrong_epollin_events += 1
-            if client.wrong_epollin_events > 3:
+            if client.wrong_epollin_events >= 3:
+                debug('Seen 3 consecutive empty EPOLLIN events, maybe connection %s is dead? Clean up', client.addr)
                 self.epoll_hup(fileno)
             return
         client.wrong_epollin_events = 0
@@ -114,6 +142,8 @@ class EPollServer(Server):
         sent = client.response_sent
         while True:
             size = client.sk.send(client.response_data[sent: sent + BUFFER_SIZE])
+            if not size:
+                return # Can't send anything out
             client.response_sent += size
             if client.response_sent >= client.response_len:
                 # Message sent 
@@ -124,6 +154,8 @@ class EPollServer(Server):
 
     def epoll_hup(self, fileno):
         # Remote shutdown
+        # Hup or ERR events can't be generated when remote client closed the
+        # connection, don't know why
         self.epoll.unregister(fileno)
         client = self.clients[fileno]
         debug('%s closed', client.addr)
