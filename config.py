@@ -13,7 +13,7 @@ meta_dev = '/home/chenz/source/ideerfs/test/tmp/sd1'
 # This better be a attribute of file
 checksum_algo = '' # No checksum needed
 
-daemon = False #True # Servers run as daemon
+daemon = True # Servers run as daemon
 
 
 #--------------No need to change the following----------------------------

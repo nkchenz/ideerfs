@@ -67,7 +67,7 @@ class Server:
             debug('Server mainloop exception: %s', err)
         # Release port
         self.socket.close()
-        if self.pidfile:
+        if self.pidfile and os.path.exists(self.pidfile):
             os.remove(self.pidfile)
         print 'Shutdown OK'
         sys.exit(0) # Exit even if there are active connection threads
@@ -99,9 +99,7 @@ class Server:
 
     def __cleanup(self, signal, dummy):
         self.shutdown = True
-        if self.pidfile and os.path.exists(self.pidfile):
-            os.remove(self.pidfile)
- 
+        
     def _set_signals(self):
         signal.signal(signal.SIGTERM, self.__cleanup)
         signal.signal(signal.SIGINT, self.__cleanup)

@@ -10,7 +10,6 @@ config.home directory:
 storage, chunk servers are similar.
 """
 import config
-from oodict import OODict
 from meta import *
 from processer import *
 from journal_processer import *

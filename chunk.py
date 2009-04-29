@@ -26,7 +26,8 @@ class ChunkService(Service):
         self._devices_file = 'exported_devices'
         self._chunk_shard = ChunkShard()
         self._devices_changed = []
-
+        
+        info('Starting heartbeat thread')
         thread.start_new_thread(self._heartbeat, ())
 
     def _update_devices(self):
