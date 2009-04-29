@@ -9,7 +9,7 @@ from oodict import OODict
 from protocol import *
 from util import *
 
-BUFFER_SIZE = 1024 * 8
+BUFFER_SIZE = 1024 * 64 
 
 class EPollServer(Server):
 
@@ -139,9 +139,8 @@ class EPollServer(Server):
         client = self.clients[fileno]
         if client.response is None: # No response yet
             return
-        sent = client.response_sent
         while True:
-            size = client.sk.send(client.response_data[sent: sent + BUFFER_SIZE])
+            size = client.sk.send(client.response_data[client.response_sent: client.response_sent + BUFFER_SIZE])
             if not size:
                 return # Can't send anything out
             client.response_sent += size
