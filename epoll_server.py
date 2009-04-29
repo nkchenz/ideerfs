@@ -170,8 +170,8 @@ class EPollServer(Server):
         else:
             del response['_req']
             debug('Send back response %s', filter_req(response))
-            client.response = response
             client.response_data = pack_message(response)
             client.response_sent = 0 
             client.response_len = len(client.response_data)
+            client.response = response
             return 0 # OK
