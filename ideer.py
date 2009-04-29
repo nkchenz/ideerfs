@@ -4,6 +4,7 @@
 
 import os
 import sys
+import logging
 
 from nlp import NLParser
 import fs_shell
@@ -30,6 +31,7 @@ if cmd not in controller:
 
 # Set client debug log
 init_logging(os.path.join(config.home, 'ideer.client.log'))
+logging.getLogger('').setLevel(logging.INFO)
 
 # Set dispatcher and rules for nlp
 nlp = NLParser()

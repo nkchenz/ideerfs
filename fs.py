@@ -130,13 +130,14 @@ class File:
     def stat(self):
         return self._fs.stat(self.name)
 
-    def _read_chunk(self, chunk, loca, offset, len):
+    def _read_chunk(self, chunk, loca, offset, length):
         """Read chunk from replicas"""
         for did, addr in loca:
             try:
                 nio_chunk = NetWorkIO(addr)
-                status, payload = nio_chunk.call('chunk.read', did = did, chunk = chunk, offset = offset, len = len)
+                status, payload = nio_chunk.call('chunk.read', did = did, chunk = chunk, offset = offset, len = length)
                 nio_chunk.close()
+                debug('file.read_chunk: cid %d offset %d length %d get %d', chunk.cid, offset, length, len(payload))
                 return payload
             except IOError, err:
                 debug('Read failed for chunk %s at %s@%s: %s', chunk, did, addr, err)
@@ -180,6 +181,8 @@ class File:
         
         chunks = self._fs.get_chunks(meta.id, offset, length)
         locations = self._fs.get_chunk_locations(chunks.exist_chunks)
+
+        debug('file.read: pos %d length %d', offset, length)
 
         # Window algo
         data = []

@@ -6,6 +6,7 @@ from struct import pack, unpack
 from oodict import OODict
 from util import *
 import cPickle
+from logging import info, debug
 
 BUFFER_SIZE = 1024 * 1024 * 8 
 # I'm not sure whether buffer is needed here, for sending hundreds of megabytes using one socket.send
@@ -120,6 +121,7 @@ def read_message(f):
         if done_len >= msg.payload_length:
             break
     
+    debug('protocol.read_message: payload-length %d get %d', msg.payload_length, len(payload))
     msg.payload = payload
     del msg['payload_length']
     return msg
