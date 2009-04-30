@@ -72,8 +72,8 @@ class OODict(dict):
     def __getattr__(self, key):
         try:
             return self[key]
-        except KeyError:
-            raise AttributeError
+        except KeyError, err:
+            raise AttributeError(err)
 
     def __setattr__(self, key, value):
         self[key] = value

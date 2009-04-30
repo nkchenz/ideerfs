@@ -59,18 +59,25 @@ class Server:
         if self.pidfile:
             os.system('echo %d > %s' %(os.getpid(), self.pidfile))
         # Dispatcher, check conn pools for readable incoming messages
+
+        err = None
         try:
             self.bind(self.addr)
             self.socket.listen(MAX_WAITING_CLIENTS)
             self.mainloop()
         except Exception, err:
             debug('Server mainloop exception: %s', err)
+
         # Release port
         self.socket.close()
         if self.pidfile and os.path.exists(self.pidfile):
             os.remove(self.pidfile)
         print 'Shutdown OK'
-        sys.exit(0) # Exit even if there are active connection threads
+
+        if err:
+            raise
+        else:
+            sys.exit(0) # Exit even if there are active connection threads
 
     def daemonize(self, **files):
         """Switch to background

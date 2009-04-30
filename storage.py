@@ -248,7 +248,7 @@ class StorageService(Service):
         rv = OODict()
         rv.needreport = False
         # First time connect, please send your chunkreports to me
-        if req.addr not in self._nodes:
+        if req.addr not in self._nodes: # Or not alive?
             rv.needreport = True
         
         self._update_host(req.addr)

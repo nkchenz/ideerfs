@@ -1,19 +1,17 @@
 =TODO=
-
-- epoll request processing model
 - stride read and write chunks
 - simple mapreduce
+- pwd is not multi client safe
+- easy way to set chunk_server_address
 
 - server crash transparent for client
 - object COW + cp
 - socket.recv error retry in nio
-
-- journal and lock
 - meta lookup cache
-- pwd is not multi client safe
 - client buffer
 - chunk piping and replicating
 - optimize for large amount of small files, put them in one chunk
+- batch processing
 
 CheckPoint:
 If you want to flush mem data, you shall acquire a global lock to protect it
