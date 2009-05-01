@@ -1,8 +1,7 @@
 =TODO=
 - stride read and write chunks
 - simple mapreduce
-- pwd is not multi client safe
-- easy way to set chunk_server_address
+- why chunk server eat up so much cpu time? 70%?
 
 - server crash transparent for client
 - object COW + cp

@@ -6,7 +6,7 @@ from oodict import *
 
 class FSShell:
     def __init__(self):
-        self._db = FileDB(config.home)
+        self._db = FileDB('.')
         self.usage_rules = {
             'lsdir': 'lsdir',
             'lsdir $dir': 'lsdir',
@@ -26,7 +26,7 @@ class FSShell:
         self._fs = FileSystem()
 
     def _getpwd(self):
-        return self._db.load('pwd', '')
+        return self._db.load('.pwd', '')
 
     def _normpath(self, path):
         """Normalize path with PWD env considered"""
@@ -41,7 +41,7 @@ class FSShell:
         dir = self._normpath(args.dir)
         meta = self._fs.stat(dir)
         if meta and meta.type == 'dir':
-            self._db.store(dir, 'pwd')
+            self._db.store(dir, '.pwd')
 
     def stat(self, args):
         file = self._normpath(args.file)
