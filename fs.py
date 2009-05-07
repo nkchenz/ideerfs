@@ -102,30 +102,26 @@ class File:
         self.name = name
         self._fs = fs
         self._read_buffer = '' # Client buffer
-        self._write_buffer = ''
+        self._write_buffer = '' # Sequent write buffer
         
         # Next byte to read or write
         self._pos = 0
 
         # If we get file meta here, what shall we do if meta changes in other threads?
-        #self.meta = self.fs.get_file_meta(self.name)
+        # Get write lock
+        self.meta = self.stat()
                 
     def close(self):
         """Close file, flush buffers"""
-        pass
+        self.flush()
     
     def lock(self, range):
         # Before read and write, better get a lock 
         pass
     
-    def tell():
-        pass
-        
-    def seek():
-        pass
-        
-    def flush():
-        pass
+    def flush(self):
+        self.write_chunk(self._write_buffer)
+        self._write_buffer = ''
 
     def stat(self):
         return self._fs.stat(self.name)
@@ -160,7 +156,6 @@ class File:
             raise IOError('data not written')
         return dids
     
- 
     def read(self, length = None):
         """Read len bytes from current pos
 
@@ -220,73 +215,70 @@ class File:
         return ''.join(data)
 
     def write(self, data):
-        """Write data to offset of file
-        
-        @offset
-        @data
+        """Buffer small writes, only write full chunks to network"""
+        self._write_buffer += data
+        csize = self.meta.chunk_size
+        while True:
+            offset = self._pos % csize # Usually 0, aligned by chunk
+            bsize = len(self._write_buffer)
+            if offset + bsize < csize:
+                if bsize:
+                    debug('file.write: buffered offset %d size %d', offset, bsize)
+                break
+            length = csize - offset
+            debug('file.write: chunk full offset %d length %d', offset, length)
+            self.write_chunk(self._write_buffer[:length])
+            self._write_buffer = self._write_buffer[length:]
 
-        Return bytes written. If there are errors, write as many as possisble.
-        """
+    def write_chunk(self, data):
+        """Write data to chunk, offset in chunk is self._pos % meta.chunk_size"""
         if not data:
             return 0 # Zero bytes written
         meta = self.stat()
         length = len(data)
-        offset = self._pos
-        chunks = self._fs.get_chunks(meta.id, offset, length)
+        chunks = self._fs.get_chunks(meta.id, self._pos, length)
         locations = self._fs.get_chunk_locations(chunks.exist_chunks)
-        
-        bytes_written = 0
-        w_start = offset % meta.chunk_size
-        w_len = meta.chunk_size - w_start
         cid = chunks.first
         attrs = OODict()
-        while cid <= chunks.last:
+        new = False
+        if cid not in chunks.exist_chunks:
+            # Alloc new chunk
+            new = True
+            loca = self._fs.alloc_chunk(meta.chunk_size, meta.replica_factor)
+            if not loca:
+                raise IOError('storage.alloc no free space')
+            chunk = OODict() # No need be a chunk instance, just a dict will be ok
+            chunk.fid, chunk.cid, chunk.version = meta.id, cid, 1
+            chunk.size = meta.chunk_size
+        else:
+            # Write old chunk 
+            chunk = chunks.exist_chunks[cid]
+            if cid not in locations:
+                raise IOError('no replica found for chunk', chunk)
+            loca = locations[cid]
+        
+        # Write chunk. 
+        # TODO: Seperate creating with writing, and let chunk servers 
+        # publish chunks to storage manager 
+        #       Check if read, write succeed 
+        dids = self._write_chunk(chunk, loca, self._pos % meta.chunk_size, data, new)
 
-            if cid == chunks.last: # Final chunk
-                w_len = length - bytes_written
-
-            new = False
-            if cid not in chunks.exist_chunks:
-                # Alloc new chunk
-                new = True
-                loca = self._fs.alloc_chunk(meta.chunk_size, meta.replica_factor)
-                if not loca:
-                    raise IOError('storage.alloc no free space')
-                chunk = OODict() # No need be a chunk instance, just a dict will be ok
-                chunk.fid, chunk.cid, chunk.version = meta.id, cid, 1
-                chunk.size = meta.chunk_size
-            else:
-                # Write old chunk 
-                chunk = chunks.exist_chunks[cid]
-                if cid not in locations:
-                    raise IOError('no replica found for chunk', chunk)
-                loca = locations[cid]
-            
-            # Write chunk. 
-            # TODO: Seperate creating with writing, and let chunk servers publish chunks to storage manager 
-            #       Check if read, write succeed 
-            dids = self._write_chunk(chunk, loca,  w_start, data[bytes_written: bytes_written + w_len], new)
-    
-            # Update size and chunk location
-            # See whether we are writing out of file, update file size if yes
-            bytes_written += w_len # Fixme! We may have problem here if not all w_len bytes are written
-            self._pos += w_len
-            new_size = offset + bytes_written
-            if new_size > meta.size:
-                meta.size = new_size
-                attrs.size = new_size
-            if not new:
-                chunk.version += 1 # Update version
-            del chunk['size'] # We don't want chunk.size be saved in chunk, so ugly. In fact, chunk is just like object id 
-            attrs.chunks = {cid: chunk}
-            
-            # Update with meta server
-            self._fs.setattr(meta.id, attrs)
-            # Update with storage server
-            self._fs.publish_chunk(chunk, dids)
-            
-            cid += 1
-            w_start = 0
-            w_len = meta.chunk_size
-            
-        return bytes_written
+        # Update size and chunk location
+        # See whether we are writing out of file, update file size if yes
+        # Fixme! We may have problem here if not all w_len bytes are written
+        self._pos += length
+        if self._pos > meta.size:
+            attrs.size = self._pos # Update file size
+        if not new:
+            chunk.version += 1 # Update version
+        # We don't want chunk.size be saved in chunk, so ugly. 
+        # In fact, chunk is just like object id 
+        del chunk['size']
+        attrs.chunks = {cid: chunk}
+        
+        # Update with meta server
+        self._fs.setattr(meta.id, attrs)
+        # Update with storage server
+        self._fs.publish_chunk(chunk, dids)
+        
+        return length

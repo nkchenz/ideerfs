@@ -70,7 +70,7 @@ class FSShell:
         sf = open(src, 'rb')
         self._fs.create(dest, replica_factor = 1, chunk_size = 2 ** 25)
         df = self._fs.open(dest)
-        buf_size = 2 ** 25
+        buf_size = 2 ** 25 # 32M
         while True:
             data = sf.read(buf_size)
             if not data:
