@@ -3,6 +3,8 @@
 import select
 import thread
 import threading
+import socket
+
 from logging import info, debug
 
 from oodict import OODict
@@ -11,6 +13,7 @@ class AIO:
 
     def __init__(self):
         self.io_queue = {}
+        self.shutdown = False
         self.epoll = select.epoll()
         thread.start_new_thread(self._mainloop, ())
 
@@ -20,12 +23,13 @@ class AIO:
     def write(self, fp, data, callback = None):
         return self._enqueue(fp, data, 0, callback, 'write_queue', select.EPOLLOUT)
 
-    def wait(self, io):
-        if io.fp.fileno() not in self.io_queue:
+    def wait(self, io, timeout = 30):
+        if io.fn not in self.io_queue:
             raise # Closed socket
         io.done_cv.acquire()
         while not io.done:
-           io.done_cv.wait()
+            # Check timeout
+            io.done_cv.wait()
         io.done_cv.release()
 
     def _enqueue(self, fp, data, length, callback, queue, mask):
@@ -40,13 +44,14 @@ class AIO:
         
         if fn not in self.io_queue:
             self.io_queue[fn] = OODict()
-            self.io_queue[fn][queue] = []
-            self.io_queue[fn].mask = mask
             self.io_queue[fn].fp = fp
+            self.io_queue[fn].mask = 0
             self.io_queue[fn].errs = 0
-            # fp must be a socket
             fp.setblocking(0)
             self.epoll.register(fn, self.io_queue[fn].mask)
+
+        if queue not in self.io_queue[fn]:
+            self.io_queue[fn][queue] = []
 
         if self.io_queue[fn][queue]:
             self.io_queue[fn][queue].append(io)
@@ -54,13 +59,21 @@ class AIO:
             self.io_queue[fn][queue] = [io]
             self.io_queue[fn].mask |= mask
             self.epoll.modify(fn, self.io_queue[fn].mask)
+
+        print queue, io
         return io
 
     def _clear_mask(self, fn, mask):
         self.io_queue[fn].mask &= ~mask
 
+    def close(self):
+        print 'close'
+        self.shutdown = True
+
     def _mainloop(self):
         while True:
+            if self.shutdown:
+                break
             events = self.epoll.poll(1) # Timeout 1 second
             for fn, event in events:
                 try:
@@ -113,6 +126,9 @@ class AIO:
             io.data += tmp
             if len(tmp) < wanted:
                 return  # No more data available
+        
+            print 'read done', io
+
             io = client.read_queue.pop(0)
             io.done_cv.acquire()
             io.done = True
@@ -135,6 +151,9 @@ class AIO:
                 return
             else:
                 io = client.write_queue.pop(0)
+
+                print 'write done', io
+
                 io.done_cv.acquire()
                 io.done = True
                 io.done_cv.notify()
@@ -148,4 +167,5 @@ class AIO:
         self.epoll.unregister(fn)
         self.io_queue[fn].fp.close()
         del self.io_queue[fn]
+        print fn, 'closed'
 
