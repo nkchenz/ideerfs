@@ -23,33 +23,36 @@ while True:
     events = epoll.poll(1) # Timeout 1 second
     print 'Polling %d events' % len(events)
     for fileno, event in events:
-        if fileno == s.fileno():
-            sk, addr = s.accept()
-            sk.setblocking(0)
-            print addr
-            cs[sk.fileno()] = sk
-            en[sk.fileno()] = 0
-            epoll.register(sk.fileno(), select.EPOLLIN)
+        try:
+            if fileno == s.fileno():
+                sk, addr = s.accept()
+                sk.setblocking(0)
+                print addr
+                cs[sk.fileno()] = sk
+                en[sk.fileno()] = 0
+                epoll.register(sk.fileno(), select.EPOLLIN)
 
-        elif event & select.EPOLLHUP:
-            print 'hup'
-            epoll.unregister(fileno)
+            elif event & select.EPOLLHUP:
+                print 'hup'
+                epoll.unregister(fileno)
 
-        elif event & select.EPOLLIN:
-            data = cs[fileno].recv(4)
-            if not data:
-                en[fileno] += 1
-                if en[fileno] >= 3:
-                    print 'closed'
-                    epoll.unregister(fileno)
-                continue
-            en[fileno] = 0
-            print 'recv ', data
-            epoll.modify(fileno, select.EPOLLOUT)
-        elif event & select.EPOLLOUT:
-            print 'send ', data
-            cs[fileno].send(data)
-            data = ''
-            epoll.modify(fileno, select.EPOLLIN)
+            elif event & select.EPOLLIN:
+                data = cs[fileno].recv(4)
+                if not data:
+                    en[fileno] += 1
+                    if en[fileno] >= 3:
+                        print 'closed'
+                        epoll.unregister(fileno)
+                    continue
+                en[fileno] = 0
+                print 'recv ', data
+                epoll.modify(fileno, select.EPOLLOUT)
+            elif event & select.EPOLLOUT:
+                print 'send ', data
+                cs[fileno].send(data)
+                data = ''
+                epoll.modify(fileno, select.EPOLLIN)
+        except:
+            pass
 
-  
+      
