@@ -54,5 +54,3 @@ while True:
                 epoll.modify(fileno, select.EPOLLIN)
         except:
             pass
-
-      

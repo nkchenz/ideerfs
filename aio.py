@@ -65,6 +65,7 @@ class AIO:
 
     def _clear_mask(self, fn, mask):
         self.io_queue[fn].mask &= ~mask
+        self.epoll.modify(fn, self.io_queue[fn].mask)
 
     def close(self):
         print 'close'
@@ -77,17 +78,19 @@ class AIO:
             events = self.epoll.poll(1) # Timeout 1 second
             for fn, event in events:
                 try:
-                    if event & select.EPOLLIN:
+                    if event & select.EPOLLHUP:
+                        self._epoll_hup(fn)
+                    elif event & select.EPOLLIN:
                         self._epoll_in(fn)
                     elif event & select.EPOLLOUT:
                         self._epoll_out(fn)
-                    elif event & select.EPOLLHUP:
-                        self._epoll_hup(fn)
                 except socket.error, err:
                     if err.errno == 11: # Catch the Errno
                         pass
                     else:
                         raise
+        for fn in self.io_queue.keys():
+            self._epoll_hup(fn)
         self.epoll.close()
 
     def _recv(self, client, size):
@@ -122,6 +125,7 @@ class AIO:
         while client.read_queue:
             io = client.read_queue[0]
             wanted = io.length - len(io.data)
+            print 'wanted', wanted
             tmp = self._recv(client, wanted)
             io.data += tmp
             if len(tmp) < wanted:
@@ -144,6 +148,7 @@ class AIO:
         while client.write_queue:
             io = client.write_queue[0]
             size = client.fp.send(io.data[io.length:])
+            print 'send', size
             if not size:
                 return
             io.length += size
