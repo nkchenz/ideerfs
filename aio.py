@@ -4,6 +4,7 @@ import select
 import thread
 import threading
 import socket
+import time
 
 from logging import info, debug
 
@@ -23,19 +24,31 @@ class AIO:
     def write(self, fp, data, callback = None):
         return self._enqueue(fp, data, 0, callback, 'write_queue', select.EPOLLOUT)
 
-    def wait(self, io, timeout = 30):
+    def wait(self, io, timeout = 0):
+        """When there are no more data, there are no more epollin events too.
+        so if we want to detect if a io operation timeouts, we should have a
+        thread to iterating all io operations.
+        
+        Here we use timeout with wait, it's more easier. 
+        """
         if io.fn not in self.io_queue:
             raise # Closed socket
         io.done_cv.acquire()
         while not io.done:
-            # Check timeout
-            io.done_cv.wait()
+            if not timeout: # Timeout not set
+                io.done_cv.wait()
+            else:
+                tmp = time.time() - io.ctime
+                if tmp > timeout:
+                    break
+                io.done_cv.wait(tmp)
         io.done_cv.release()
 
     def _enqueue(self, fp, data, length, callback, queue, mask):
         fn = fp.fileno()
         io = OODict()
         io.fn = fn
+        io.ctime = time.time()
         io.data = data
         io.length = length
         io.callback = callback
