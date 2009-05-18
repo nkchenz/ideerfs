@@ -100,6 +100,123 @@ class NetWorkIO:
     def close(self):
         self.socket.close()
 
+class Messager:
+
+    def __init__(self):
+        self._processer = aio.AIO()
+        self._sockets = {}
+        self._connect_error_retry = 3
+        self._send_error_retry = 3
+        self._id = 0
+
+   def _connect(self, addr):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        retry = 0
+        while True:
+            try:
+                s.connect(addr)
+                self._sockets[addr] = s
+                break
+            except socket.error, err:
+                print 'socket.error', err
+                if retry >= self._connect_error_retry: # No more retrys
+                    raise NoMoreRetryError('socket connect error')
+                time.sleep(2 ** retry)
+                retry += 1
+
+    def request(self, req):
+        if not self.socket:
+            self._connect()
+
+        req._id = self.req_id
+        self.req_id += 1
+
+        retry = self.retrys_on_socket_send_error
+        while True:
+            try:
+                send_message(self.socket, req)
+                break
+            except socket.error, err:
+                # There must be something wrong with this socket
+                # Create a new one
+                self._connect()
+                # Only retry when connected, 
+                if retry <= 0:
+                    raise NoMoreRetryError('socket send error')
+                # Do not need sleep here
+                retry -= 1
+
+        # Retrans here FIXME
+        # What if error happens while read answer? Should we retry?
+        # Set a timer here to get ack
+        msg = read_message(self.socket)
+        return msg
+    
+    def call(self, method, **args):
+        req = OODict()
+        req.method = method
+        for k, v in args.items():
+            req[k] = v
+            
+        resp = self.request(req)
+        if 'error' in resp:
+            raise ResponseError(resp.error)
+
+        # Response must have 'value' if not have 'error'
+        # What about payload?
+        if 'payload' in resp:
+            return resp.value, resp.payload
+        else:
+            return resp.value
+
+    def call(self, addr, method, **args, block = True, timeout = 0):
+        # How to detect socket errors? how to resend message and reconnect
+        # socket?
+
+        # Connect socket
+        if addr not self._sockets:
+            self._connect(addr)
+
+        # Pack message
+        req = OODict()
+        req.method = method
+        for k, v in args.items():
+            req[k] = v
+        req._id = self._id
+        self._id += 1
+
+        retry = self.retrys_on_socket_send_error
+        while True:
+            try:
+                send_message(self.socket, req)
+                break
+            except socket.error, err:
+                # There must be something wrong with this socket
+                # Create a new one
+                self._connect()
+                # Only retry when connected, 
+                if retry <= 0:
+                    raise NoMoreRetryError('socket send error')
+                # Do not need sleep here
+                retry -= 1
+
+        # Retrans here FIXME
+        # What if error happens while read answer? Should we retry?
+        # Set a timer here to get ack
+        msg = read_message(self.socket)
+        return msg
+    
+        if 'error' in resp:
+            raise ResponseError(resp.error)
+
+        # Response must have 'value' if not have 'error'
+        # What about payload?
+        if 'payload' in resp:
+            return resp.value, resp.payload
+        else:
+            return resp.value
+        pass
+
 '''
 socket.check from kfs
 241 bool TcpSocket::IsGood()
