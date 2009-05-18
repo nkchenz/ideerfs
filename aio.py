@@ -145,14 +145,7 @@ class AIO:
                 return  # No more data available
         
             print 'read done', io
-
-            io = client.read_queue.pop(0)
-            io.done_cv.acquire()
-            io.done = True
-            io.done_cv.notify()
-            io.done_cv.release()
-            if io.callback:
-                io.callback(io)
+            self._mark_done(io)
 
         self._clear_mask(fn, select.EPOLLIN)
 
@@ -171,15 +164,17 @@ class AIO:
                 io = client.write_queue.pop(0)
 
                 print 'write done', io
+                self._mark_done(io)
 
-                io.done_cv.acquire()
-                io.done = True
-                io.done_cv.notify()
-                io.done_cv.release()
-                if io.callback:
-                    io.callback(io)
-        
         self._clear_mask(fn, select.EPOLLOUT)
+
+    def _mark_done(self, io):
+        io.done_cv.acquire()
+        io.done = True
+        io.done_cv.notify()
+        io.done_cv.release()
+        if io.callback:
+            io.callback(io)
 
     def _epoll_hup(self, fn):
         self.epoll.unregister(fn)
