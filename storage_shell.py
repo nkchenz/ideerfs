@@ -4,7 +4,7 @@ from pprint import pformat
 from io import *
 from dev import *
 from obj import *
-from nio import *
+from msg import messager
 
 class StorageShell:
     """Manage local disks"""
@@ -33,8 +33,7 @@ class StorageShell:
 
     def _pre_command(self, cmd, args):
         """Hook for pre cmd running"""
-        if cmd not in ['format']: # No need to connect storage service while formatting
-            self._nio = NetWorkIO(config.storage_server_address)
+        pass
 
     def _get_device(self, path):
         """Get device by path"""
@@ -84,7 +83,7 @@ class StorageShell:
             raise IOError('wrong type')
 
         compressed_report = zlib.compress(pformat(self._get_chunks(dev)))
-        self._nio.call('storage.online', conf = dev.config, addr = config.chunk_server_address, payload = compressed_report)
+        messager.call(config.storage_server_address, 'storage.online', conf = dev.config, addr = config.chunk_server_address, payload = compressed_report)
         dev.flush()
         self._flush()
         return 'ok'
@@ -96,7 +95,7 @@ class StorageShell:
         id = dev.config.id
         if id not in self._devices:
             raise IOError('not found')
-        self._nio.call('storage.offline', did = id, replicate = False)
+        messager.call(config.storage_server_address, 'storage.offline', did = id, replicate = False)
         dev.flush()
 
         del self._devices[id]
@@ -109,7 +108,7 @@ class StorageShell:
         id = dev.config.id
         if id not in self._devices:
             raise IOError('not found')
-        self._nio.call('storage.frozen', did = id)
+        messager.call(config.storage_server_address, 'storage.frozen', did = id)
         dev.config.mode = 'frozen'
         dev.flush()
         return 'ok'
@@ -136,7 +135,7 @@ class StorageShell:
             for did, path in self._devices.items():
                 print did, path
         elif args.path == 'all':
-            status = self._nio.call('storage.status')
+            status = messager.call(config.storage_server_address, 'storage.status')
             for k in status.nodes.keys():
                 node = status.nodes[k]
                 print '%s:%d' % (k[0], k[1]), time.ctime(node.update_time)

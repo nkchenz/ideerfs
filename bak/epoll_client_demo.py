@@ -7,12 +7,12 @@ s.connect(('localhost', 8989))
 
 n = aio.AIO()
 
-io = n.read(s, 20)
+io = n.read(s, 40)
 
 for i in range(4):
     n.write(s, '12345678')
 
-n.wait(io)
-
+n.wait(io, 10)
+print io
 
 n.close()

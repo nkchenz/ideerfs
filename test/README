@@ -1,0 +1,21 @@
+1. Modify ../config.py
+
+Generally speaking you only need to tell me where is meta_dev
+
+    meta_dev = 'your-own-path/ideerfs/test/tmp/sd1'
+
+Replace 'your-own-path' with the dir path where you store 'ideerfs',
+formatfs.py will create disks under test/tmp, and use sd1 as meta_dev by
+default.
+
+2. Format fs and prepare for disks
+
+    ./formatfs.py
+
+3. Start servers on localhost, online disks
+
+    ./startfs.py
+
+4. Stop servers
+
+    ./stopfs.py

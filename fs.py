@@ -7,10 +7,10 @@ http://hadoop.apache.org/core/docs/current/api/org/apache/hadoop/fs/kfs/KosmosFi
 """
 
 from oodict import *
-from nio import *
 from util import *
 import config
 from logging import info, debug
+from msg import messager
 
 class FileSystem:
     """Filesystem interface at client node
@@ -21,32 +21,28 @@ class FileSystem:
         nio = getattr(self, '_nio_' + proto)
         setattr(self, func, lambda **args: nio.call(method, **args))
     """
-    
-    def __init__(self):
-        self._nio_meta = NetWorkIO(config.meta_server_address)
-        self._nio_storage = NetWorkIO(config.storage_server_address)
 
     def create(self, file, **attrs):
         """Create new files with attrs: replication factor, bs, permission
         foo.create('/kernel/sched.c', replica_factor = 3, chunk_size = '64m')
         """
-        return self._nio_meta.call('meta.create', file = file, type = 'file', attrs = attrs)
+        return messager.call(config.meta_server_address, 'meta.create', file = file, type = 'file', attrs = attrs)
 
     def delete(self, file, recursive):
-        return self._nio_meta.call('meta.delete', file = file, recursive = recursive)
+        return messager.call(config.meta_server_address, 'meta.delete', file = file, recursive = recursive)
     
     def exists(self, file):
-        return self._nio_meta.call('meta.exists', file = file)
+        return messager.call(config.meta_server_address, 'meta.exists', file = file)
 
     def lsdir(self, dir):
         """list dir, return [] if not exists or not a dir"""
-        return self._nio_meta.call('meta.lsdir', dir = dir)
+        return messager.call(config.meta_server_address, 'meta.lsdir', dir = dir)
 
     def mkdir(self, dir):
-        return self._nio_meta.call('meta.create', file = dir, type = 'dir')
+        return messager.call(config.meta_server_address, 'meta.create', file = dir, type = 'dir')
             
     def mv(self, old_file, new_file):
-        return self._nio_meta.call('meta.rename', old_file = old_file, new_file = new_file)
+        return messager.call(config.meta_server_address, 'meta.rename', old_file = old_file, new_file = new_file)
         
     def open(self, file):
         """Return a File object"""
@@ -76,25 +72,25 @@ class FileSystem:
 
     def stat(self, file):
         """Get attributes of file, stat file"""
-        return self._nio_meta.call('meta.stat', file = file)
+        return messager.call(config.meta_server_address, 'meta.stat', file = file)
     
     def setattr(self, fid, attrs):
-        return self._nio_meta.call('meta.set', fid = fid, attrs = attrs)
+        return messager.call(config.meta_server_address, 'meta.set', fid = fid, attrs = attrs)
 
     def get_chunks(self, fid, offset, length):
         """Query meta server whether a chunk exists in file """
-        return self._nio_meta.call('meta.get_chunks', fid = fid, offset = offset, length = length)
+        return messager.call(config.meta_server_address, 'meta.get_chunks', fid = fid, offset = offset, length = length)
 
     def get_chunk_locations(self, chunks):
         """Get the localtions of chunks"""
-        return self._nio_storage.call('storage.search', chunks = chunks)
+        return messager.call(config.storage_server_address, 'storage.search', chunks = chunks)
 
     def alloc_chunk(self, size, n):
         """Alloc n new chunks"""
-        return self._nio_storage.call('storage.alloc', size = size, n = n)
+        return messager.call(config.storage_server_address, 'storage.alloc', size = size, n = n)
         
     def publish_chunk(self, chunk, dids):
-        return self._nio_storage.call('storage.publish', chunk = chunk, dids = dids)
+        return messager.call(config.storage_server_address, 'storage.publish', chunk = chunk, dids = dids)
       
 
 class File:
@@ -130,9 +126,7 @@ class File:
         """Read chunk from replicas"""
         for did, addr in loca:
             try:
-                nio_chunk = NetWorkIO(addr)
-                status, payload = nio_chunk.call('chunk.read', did = did, chunk = chunk, offset = offset, len = length)
-                nio_chunk.close()
+                status, payload = messager.call(addr, 'chunk.read', did = did, chunk = chunk, offset = offset, len = length)
                 debug('file.read_chunk: cid %d offset %d length %d get %d', chunk.cid, offset, length, len(payload))
                 return payload
             except IOError, err:
@@ -145,9 +139,7 @@ class File:
         dids = []
         for did, addr in loca:
             try:
-                nio_chunk = NetWorkIO(addr)
-                nio_chunk.call('chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new = new)
-                nio_chunk.close()
+                messager.call(addr, 'chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new = new)
                 dids.append(did)
             except IOError, err:
                 debug('Write failed for chunk %s at %s@%s: %s', chunk, did, addr, err)

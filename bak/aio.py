@@ -1,4 +1,8 @@
-"""AIO model for network socket"""
+"""AIO model for network socket
+
+See epoll_client_demo.py for examples
+
+"""
 
 import select
 import thread

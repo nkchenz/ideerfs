@@ -7,11 +7,11 @@ import thread
 from oodict import OODict
 from util import *
 from dev import *
-from nio import *
 from obj import *
 from io import *
 from service import *
 import config
+from msg import messager
 
 class ChunkService(Service):
     """Service chunks on devices
@@ -113,7 +113,6 @@ class ChunkService(Service):
         upstream: devices infos such as size, used change
         downstream: deleted chunks
         """
-        nio = NetWorkIO(config.storage_server_address)
         while True:
             # Lock
             tmp = self._devices_changed
@@ -129,7 +128,7 @@ class ChunkService(Service):
                 except:
                     continue
 
-            rc = nio.call('storage.heartbeat', addr = self._addr, confs = confs)
+            rc = messager.call(config.storage_server_address, 'storage.heartbeat', addr = self._addr, confs = confs)
             if rc.needreport:
                 # Start another thread to send chunk reports
                 thread.start_new_thread(self._send_chunk_reports, ())

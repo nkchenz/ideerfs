@@ -10,10 +10,10 @@ import time
 from logging import info, debug
 
 from util import *
-from nio import *
 from obj import *
 from service import *
 import config
+from msg import messager
 
 class MetaService(Service):
     """Filesystem meta interface
@@ -302,9 +302,7 @@ class MetaService(Service):
         self._object_shard.store_object(parent)
 
         # Free chunks to storage, this should be done in another thread
-        nio = NetWorkIO(config.storage_server_address)
-        nio.call('storage.free', deleted = deleted)
-        nio.close()
+        messager.call(config.storage_server_address, 'storage.free', deleted = deleted)
         return 'ok'
     
     
