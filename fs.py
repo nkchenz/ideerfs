@@ -389,8 +389,10 @@ class File:
         attrs = OODict()
         if not new:
             chunk.version += 1 # Update version
-        # We don't want chunk.size be saved in chunk, so ugly. 
-        del chunk['size']
+        # Remove 'size' created when allocating new chunk
+        # We don't want chunk.size be saved in chunk, so ugly
+        if new:
+            del chunk['size']
         attrs.chunks = {cid: chunk}
         self._fs.setattr(meta.id, attrs) # Tell meta server about this chunk
         # Update with storage server about the locations of this chunk
