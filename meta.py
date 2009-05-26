@@ -55,6 +55,10 @@ class MetaService(Service):
         """
         if file == '/':
             return self._object_shard.load_object(self._root)
+    
+        if file[0] != '/': # Abosolute path required
+            return None
+
         # When a dir is renamed, how to update its children's cache?
         #if file in self._lookup_cache:
         #    debug('Found in cache %s', file)
