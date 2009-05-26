@@ -37,15 +37,18 @@ class Processer:
 
             item = self.queue.pop(0) # Proccessing from head
     
-            result = self.processing(item)
-            # Error happens during processing item, need queue it back
-            if result is None:
-                self.submit(item)
-                continue
-            
-            # If we are not the last step, pass item to the next processer
-            if self.next:
-                self.next.submit(result) # Pass result to the next processer
+            try:
+                result = self.processing(item)
+                # Error happens during processing item, need queue it back
+                if result is None:
+                    self.submit(item)
+                    continue
+                # If we are not the last step, pass item to the next processer
+                if self.next:
+                    self.next.submit(result) # Pass result to the next processer
+            except Exception, err:
+                debug('Bug found, processer unexcepted exception: %s, please restart me', err)
+                raise # Fixme: restart processer, should raise or just igore this silently?
 
     def processing(self, item):
         """Process each item, please reimplement this function

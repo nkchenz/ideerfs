@@ -93,7 +93,8 @@ class ChunkService(Service):
         dev = self._lookup_dev(req.did)
         try:
             chunk = Chunk(req.chunk)
-            data = self._chunk_shard.load_chunk(chunk, dev)
+            chunk = self._chunk_shard.load_chunk(chunk, dev)
+            data = chunk.data
         except IOError, err:
             self._error(err.message)
 

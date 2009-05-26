@@ -130,6 +130,10 @@ class ChunkShard():
     
     But you can't use self.dev.load('chunks'), self.dev.store(self.chunks,
     'chunks'), that's too heavy for a db operation like insert or delete.
+
+    Fixme:
+        create_chunk
+        overwrite_chunk
     """
 
     def __init__(self):
@@ -139,7 +143,7 @@ class ChunkShard():
         os.mkdir(os.path.join(dev.config.path, 'CHUNKS'))
 
     def load_chunk(self, chunk, dev):
-        """Read chunk data from device
+        """Read chunk from device, return a chunk object
         @fid
         @cid
         @version
@@ -169,7 +173,8 @@ class ChunkShard():
             raise IOError('chunk data corrupt')
 
         fp.close()
-        return data
+        header.data = data
+        return header
 
     def _update_checksum(self, chunk, offset, data):
         """Update checksum of a chunk"""
@@ -206,7 +211,8 @@ class ChunkShard():
             f.truncate(CHUNK_HEADER_SIZE + chunk.size)
             f.close()
         else:
-            chunk.data = self.load_chunk(chunk, dev)
+            # New chunk filled with other infos
+            chunk = self.load_chunk(chunk, dev)
 
         # Update check sum
         chunk.algo = config.checksum_algo
@@ -218,6 +224,7 @@ class ChunkShard():
         # Get new physical size
         old_psize = chunk.psize
         chunk.psize = get_psize(file)
+
         if not new: # If new is True, means that this is just a replica
             chunk.version += 1
 
