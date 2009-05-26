@@ -105,6 +105,7 @@ class File:
         self._fs = fs
         self._read_buffer = '' # Client buffer
         self._write_buffer = '' # Sequent write buffer
+        self._write_buffer_offset = 0 # The offset of first byte of _write_buffer in file
 
         self._write_workers = []
         self._idle_queue = []
@@ -116,8 +117,8 @@ class File:
         self._pos = 0
 
         # If we get file meta here, what shall we do if meta changes in other threads?
-        # Get write lock
-        self.meta = self.stat()
+        self.meta_lock =  thread.allocate_lock()
+        self.meta = self.stat() # For unchangable attributes only
                 
     def close(self):
         """Close file, flush buffers"""
@@ -223,30 +224,73 @@ class File:
            
         return ''.join(data)
 
-    def write(self, data):
-        """Buffer small writes, only write full chunks to network"""
-        self._write_buffer += data
-        dl = len(data)
-        # first send out buffer and part of data
-        # then send out slices of data 
-        # until we get a non-full chunk, and put it to buffer
-        csize = self.meta.chunk_size
+    def _split_chunks(self, data_len, offset, csize):
+        """Align data to chunks, start from offset"""
+        chunks = []
+        # Initial not complete chunk
+        start = 0
+        end = csize - offset % csize
         while True:
-            offset = self._pos % csize # Usually 0, aligned by chunk
-            bsize = len(self._write_buffer)
-            if offset + bsize < csize:
-                if bsize:
-                    debug('file.write: buffered offset %d size %d', offset, bsize)
+            if end >= data_len:
+                end = data_len
+                chunks.append((offset, start, end))
                 break
-            length = csize - offset
-            debug('file.write: chunk full offset %d length %d', offset, length)
-            self.write_chunk(self._write_buffer[:length]) # Should contains offset in file
-            self._pos += length
-            self._write_buffer = self._write_buffer[length:]
+            chunks.append((offset, start, end))
 
-    def _sched_write(self, chunk):
+            # Next chunk
+            offset += end -start
+            start = end
+            end = start + csize
+        return chunks
+
+    def write(self, data):
+        """Buffer small writes, write full chunks to remote chunk servers, non
+        full chunk leaves in write buffer.
+        
+        data in write buffer is not count in file size, only written data is
+        available to others
+        """
+        self._write_buffer += data  # Fixme, large data inefficient?
+        self._pos += len(data)
+
+        for offset, start, end in self._split_chunks(\
+            len(self._write_buffer), self._write_buffer_offset, self.meta.chunk_size):
+            if (offset + end - start) % self.meta.chunk_size != 0:
+                # Only last chunk is not aligned, save to buffer
+                seff._write_buffer = self._write_buffer[start:]
+                self._write_buffer_offset = offset
+                debug('file.write: buffered offset %d size %d', offset, len(self._write_buffer))
+                # Update file size if needed
+                self._update_file_size(offset)
+                return
+            debug('file.write: chunk full offset %d length %d', offset, end - start)
+            data = OODict()
+            data.payload = self._write_buffer[start:end]
+            data.offset = offset
+            
+            if 'pw_workers' in self.meta and self.meta.pw_workers > 1:
+                self._sched_write(data) # Use parallel thread write workers
+            else:
+                self._write_data(data)
+
+        # All aligned
+        self._write_buffer = ''
+        self._write_buffer_offset = self._pos
+        self._update_file_size(self._pos)
+
+    def _update_file_size(self, offset):
+        # Modify file size if needed, lock protected
+        self.meta_lock.acquire()
+        meta = self.stat()
+        if offset > meta.size:
+            attrs = OODict()
+            attrs.size = offset
+            self._fs.setattr(meta.id, attrs)
+        self.meta_lock.release()
+
+    def _sched_write(self, data):
         """Sched chunk writing to a worker and return, no wait for IO """
-        if len(self._write_workers) < self.meta.pwrites:
+        if len(self._write_workers) < self.meta.pw_workers:
             i = OODict()
             i.data = None
             i.data_cv = threading.Condition()
@@ -264,7 +308,7 @@ class File:
             debug('idle worker %d found', i.id)
             self._idle_queue_cv.release()
 
-        self._feed_worker(i, chunk)
+        self._feed_worker(i, data)
 
     def _feed_worker(self, i, data):
         i.data_cv.acquire()
@@ -273,7 +317,7 @@ class File:
         i.data_cv.notify()
         i.data_cv.release()
 
-    def _write_worker(self, i)
+    def _write_worker(self, i):
         """ # Every worker should has its own queue, better scale
         # If using global queue, thunder-herd problem?
         """
@@ -304,15 +348,12 @@ class File:
         debug('write worker %d closed', i.id)
 
     def _write_data(self, data):
-        """Write data to chunk, offset in chunk is self._pos % meta.chunk_size"""
-        if not data:
-            return 0 # Zero bytes written
-        meta = self.stat()
-        length = len(data)
-        chunks = self._fs.get_chunks(meta.id, self._pos, length)
+        """Write data.payload to data.offset in file, no chunk crossing """
+        meta = self.meta
+        length = len(data.payload)
+        chunks = self._fs.get_chunks(meta.id, data.offset, length)
         locations = self._fs.get_chunk_locations(chunks.exist_chunks)
         cid = chunks.first
-        attrs = OODict()
         new = False
         if cid not in chunks.exist_chunks:
             # Alloc new chunk
@@ -334,24 +375,16 @@ class File:
         # TODO: Seperate creating with writing, and let chunk servers 
         # publish chunks to storage manager 
         #       Check if read, write succeed 
-        dids = self._write_chunk(chunk, loca, self._pos % meta.chunk_size, data, new)
+        dids = self._write_chunk(chunk, loca, data.offset % meta.chunk_size, data.payload, new)
 
-        # Update size and chunk location
-        # See whether we are writing out of file, update file size if yes
-        # Fixme! We may have problem here if not all w_len bytes are written
-        #self._pos += length
-        if self._pos > meta.size:
-            attrs.size = self._pos # Update file size
+        attrs = OODict()
         if not new:
             chunk.version += 1 # Update version
         # We don't want chunk.size be saved in chunk, so ugly. 
-        # In fact, chunk is just like object id 
         del chunk['size']
         attrs.chunks = {cid: chunk}
-        
-        # Update with meta server
-        self._fs.setattr(meta.id, attrs)
-        # Update with storage server
+        self._fs.setattr(meta.id, attrs) # Tell meta server about this chunk
+        # Update with storage server about the locations of this chunk
         self._fs.publish_chunk(chunk, dids)
         
         return length

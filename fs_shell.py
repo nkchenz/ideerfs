@@ -21,6 +21,7 @@ class FSShell:
             'cp $src $dest': 'cp',
             'touch $files': 'touch',
             'cd $dir': 'cd',
+            'set $attr of $file to $value': 'set',
             'pwd': 'pwd'
             }
         self._fs = FileSystem()
@@ -157,3 +158,8 @@ class FSShell:
         old_file = self._normpath(args.old_file)
         new_file = self._normpath(args.new_file)
         self._fs.mv(old_file, new_file)
+
+    def set(self, args):
+        file = self._normpath(args.file)
+        meta = self._fs.stat(file)
+        self._fs.setattr(meta.id, {args.attr: args.value})
