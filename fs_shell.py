@@ -22,7 +22,8 @@ class FSShell:
             'touch $files': 'touch',
             'cd $dir': 'cd',
             'set $attr of $file to $value': 'set',
-            'pwd': 'pwd'
+            'pwd': 'pwd',
+            'append $localfile $file': 'append'
             }
         self._fs = FileSystem()
 
@@ -105,7 +106,6 @@ class FSShell:
         dest.write(data)
         dest.close()
 
-
     def cp(self, args):
         src = self._fs.open(self._normpath(args.src))
         destf = self._normpath(args.dest)
@@ -116,9 +116,8 @@ class FSShell:
         dest.write(data)
         dest.close()
 
-
     def exists(self, args):
-        print self._fs.exists(args.file)
+        print self._fs.exists(self._normpath(args.file))
 
     def lsdir(self, args):
         if 'dir' not in args: # If no dir, then list pwd dir
@@ -163,3 +162,21 @@ class FSShell:
         file = self._normpath(args.file)
         meta = self._fs.stat(file)
         self._fs.setattr(meta.id, {args.attr: args.value})
+
+    def append(self, args):
+        """Append local file to remote file"""
+        # Read local file
+        src = args.localfile
+        dest = self._normpath(args.file)
+        sf = open(src, 'rb')
+        if not self._fs.exists(dest):
+            self._fs.create(dest, replica_factor = 1, chunk_size = 2 ** 25)
+        df = self._fs.open(dest, 'a')
+        buf_size = 2 ** 25 # 32M
+        while True:
+            data = sf.read(buf_size)
+            if not data:
+                break
+            df.write(data)
+        sf.close()
+        df.close()

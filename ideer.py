@@ -31,7 +31,7 @@ if cmd not in controller:
 
 # Set client debug log
 init_logging(os.path.join(config.home, 'ideer.client.log'))
-logging.getLogger('').setLevel(logging.INFO)
+logging.getLogger('').setLevel(logging.DEBUG)
 
 # Set dispatcher and rules for nlp
 nlp = NLParser()

@@ -46,11 +46,11 @@ class FileSystem:
     def mv(self, old_file, new_file):
         return messager.call(config.meta_server_address, 'meta.rename', old_file = old_file, new_file = new_file)
         
-    def open(self, file):
+    def open(self, file, mode = ''):
         """Return a File object"""
         if not self.exists(file):
             raise IOError('file not exists')
-        return File(file, self)
+        return File(file, self, mode)
 
     def close(self):
         # No more fs operations, flush
@@ -93,14 +93,13 @@ class FileSystem:
         
     def publish_chunk(self, chunk, dids):
         return messager.call(config.storage_server_address, 'storage.publish', chunk = chunk, dids = dids)
-      
 
 class File:
     """
     We must provide such an interface that servral GBs of data can be written
     to remote network in seconds.
     """
-    def __init__(self, name, fs):
+    def __init__(self, name, fs, mode = ''):
         self.name = name
         self._fs = fs
         self._read_buffer = '' # Client buffer
@@ -113,12 +112,16 @@ class File:
 
         self._closing = False
 
-        # Next byte to read or write
-        self._pos = 0
-
         # If we get file meta here, what shall we do if meta changes in other threads?
         self.meta_lock =  thread.allocate_lock()
         self.meta = self.stat() # For unchangable attributes only
+
+        # Next byte to read or write
+        self._pos = 0
+        if mode == 'a': # Append mode
+            self._pos = self.meta.size
+            self._write_buffer_offset = self._pos
+            debug('file.open: append mode pos %d', self._pos)
                 
     def close(self):
         """Close file, flush buffers"""
@@ -134,38 +137,15 @@ class File:
         pass
     
     def flush(self):
-        self.write_chunk(self._write_buffer)
-        self._write_buffer = ''
+        data = OODict()
+        data.payload = self._write_buffer
+        data.offset = self._write_buffer_offset
+        self._write_data(data)
+        self._clear_buffer()
 
     def stat(self):
         return self._fs.stat(self.name)
 
-    def _read_chunk(self, chunk, loca, offset, length):
-        """Read chunk from replicas"""
-        for did, addr in loca:
-            try:
-                status, payload = messager.call(addr, 'chunk.read', did = did, chunk = chunk, offset = offset, len = length)
-                debug('file.read_chunk: cid %d offset %d length %d get %d', chunk.cid, offset, length, len(payload))
-                return payload
-            except IOError, err:
-                debug('Read failed for chunk %s at %s@%s: %s', chunk, did, addr, err)
-        # Fatal error
-        raise IOError('no replica available', loca, chunk)
-     
-    def _write_chunk(self, chunk, loca, offset, data, new):
-        # Write chunk to data nodes
-        dids = []
-        for did, addr in loca:
-            try:
-                messager.call(addr, 'chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new = new)
-                dids.append(did)
-            except IOError, err:
-                debug('Write failed for chunk %s at %s@%s: %s', chunk, did, addr, err)
-        
-        if not dids:
-            raise IOError('data not written')
-        return dids
-    
     def read(self, length = None):
         """Read len bytes from current pos, maybe multi chunks
 
@@ -224,6 +204,70 @@ class File:
            
         return ''.join(data)
 
+    def write(self, data):
+        """Buffer small writes, write full chunks to remote chunk servers, non
+        full chunk leaves in write buffer.
+        
+        data in write buffer is not count in file size, only written data is
+        available to others
+        """
+        self._write_buffer += data  # Fixme, large data inefficient?
+        self._pos += len(data)
+
+        for offset, start, end in self._split_chunks(\
+            len(self._write_buffer), self._write_buffer_offset, self.meta.chunk_size):
+            if (offset + end - start) % self.meta.chunk_size != 0:
+                # Only last chunk is not aligned, save to buffer
+                self._write_buffer = self._write_buffer[start:]
+                self._write_buffer_offset = offset
+                debug('file.write: buffered offset %d size %d', offset, len(self._write_buffer))
+                # Update file size if needed
+                self._update_file_size(offset)
+                return
+            debug('file.write: chunk full offset %d length %d', offset, end - start)
+            data = OODict()
+            data.payload = self._write_buffer[start:end]
+            data.offset = offset
+            
+            if 'pw_workers' in self.meta and self.meta.pw_workers > 1:
+                self._sched_write(data) # Use parallel thread write workers
+            else:
+                self._write_data(data)
+
+        # All aligned
+        self._clear_buffer()
+
+    def _read_chunk(self, chunk, loca, offset, length):
+        """Read chunk from replicas"""
+        for did, addr in loca:
+            try:
+                status, payload = messager.call(addr, 'chunk.read', did = did, chunk = chunk, offset = offset, len = length)
+                debug('file.read_chunk: cid %d offset %d length %d get %d', chunk.cid, offset, length, len(payload))
+                return payload
+            except IOError, err:
+                debug('Read failed for chunk %s at %s@%s: %s', chunk, did, addr, err)
+        # Fatal error
+        raise IOError('no replica available', loca, chunk)
+     
+    def _write_chunk(self, chunk, loca, offset, data, new):
+        # Write chunk to data nodes
+        dids = []
+        for did, addr in loca:
+            try:
+                messager.call(addr, 'chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new = new)
+                dids.append(did)
+            except IOError, err:
+                debug('Write failed for chunk %s at %s@%s: %s', chunk, did, addr, err)
+        
+        if not dids:
+            raise IOError('data not written')
+        return dids
+
+    def _clear_buffer(self):
+        self._write_buffer = ''
+        self._write_buffer_offset = self._pos
+        self._update_file_size(self._pos)
+
     def _split_chunks(self, data_len, offset, csize):
         """Align data to chunks, start from offset"""
         chunks = []
@@ -242,41 +286,6 @@ class File:
             start = end
             end = start + csize
         return chunks
-
-    def write(self, data):
-        """Buffer small writes, write full chunks to remote chunk servers, non
-        full chunk leaves in write buffer.
-        
-        data in write buffer is not count in file size, only written data is
-        available to others
-        """
-        self._write_buffer += data  # Fixme, large data inefficient?
-        self._pos += len(data)
-
-        for offset, start, end in self._split_chunks(\
-            len(self._write_buffer), self._write_buffer_offset, self.meta.chunk_size):
-            if (offset + end - start) % self.meta.chunk_size != 0:
-                # Only last chunk is not aligned, save to buffer
-                seff._write_buffer = self._write_buffer[start:]
-                self._write_buffer_offset = offset
-                debug('file.write: buffered offset %d size %d', offset, len(self._write_buffer))
-                # Update file size if needed
-                self._update_file_size(offset)
-                return
-            debug('file.write: chunk full offset %d length %d', offset, end - start)
-            data = OODict()
-            data.payload = self._write_buffer[start:end]
-            data.offset = offset
-            
-            if 'pw_workers' in self.meta and self.meta.pw_workers > 1:
-                self._sched_write(data) # Use parallel thread write workers
-            else:
-                self._write_data(data)
-
-        # All aligned
-        self._write_buffer = ''
-        self._write_buffer_offset = self._pos
-        self._update_file_size(self._pos)
 
     def _update_file_size(self, offset):
         # Modify file size if needed, lock protected

@@ -6,6 +6,8 @@ Plugin layers: journal
     worker.request.next = journal
     worker.journal.next = response
 
+Fixme: How to detech exception of processing thread and restart it?
+
 """
 
 import thread
@@ -102,7 +104,7 @@ class RequestProcesser(Processer):
         except RequestHandleError, err:
                 response.error = str(err)
 
-        debug('Processed, request: %s response: %s', filter_req(req), filter_req(response))
+        #debug('Processed, request: %s response: %s', filter_req(req), filter_req(response))
         # Journal processer needs req, but response processer needs resp!
         response._req = req
         return response
