@@ -25,8 +25,8 @@ class FileSystem:
     """
 
     def create(self, file, **attrs):
-        """Create new files with attrs: replication factor, bs, permission
-        foo.create('/kernel/sched.c', replica_factor = 3, chunk_size = '64m')
+        """Create new files with attrs: bs, permission
+        foo.create('/kernel/sched.c', chunk_size = '64m')
         """
         return messager.call(config.meta_server_address, 'meta.create', file = file, type = 'file', attrs = attrs)
 
@@ -370,7 +370,11 @@ class File:
         if cid not in chunks.exist_chunks:
             # Alloc new chunk
             new = True
-            loca = self._fs.alloc_chunk(meta.chunk_size, meta.replica_factor)
+            if 'replica_factor' not in meta:
+                rf = 1
+            else:
+                rf = meta.replica_factor
+            loca = self._fs.alloc_chunk(meta.chunk_size, rf)
             if not loca:
                 raise IOError('storage.alloc no free space')
             chunk = OODict() # No need be a chunk instance, just a dict will be ok

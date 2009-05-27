@@ -18,6 +18,11 @@ config_home = os.path.expanduser('~/.ideerfs')
 def ish(args):
     run('../ideer.py %s' % (args))
 
+def ish_batch(file):
+    for line in file.splitlines():
+        line = line.strip()
+        ish(line)
+
 def run(cmd):
     print '$', cmd
     try:

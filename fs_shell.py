@@ -71,7 +71,7 @@ class FSShell:
         """Store local file """
         # Read local file
         sf = open(src, 'rb')
-        self._fs.create(dest, replica_factor = 1, chunk_size = 2 ** 25)
+        self._fs.create(dest, chunk_size = 2 ** 25)
         df = self._fs.open(dest)
         buf_size = 2 ** 25 # 32M
         while True:
@@ -110,7 +110,7 @@ class FSShell:
     def cp(self, args):
         src = self._fs.open(self._normpath(args.src))
         destf = self._normpath(args.dest)
-        self._fs.create(destf, replica_factor = 3, chunk_size = 2 ** 25)
+        self._fs.create(destf, chunk_size = 2 ** 25)
         data = src.read()
         src.close()
         dest = self._fs.open(destf)
@@ -142,7 +142,7 @@ class FSShell:
     def touch(self, args):
         for file in args.files.split():
             file = self._normpath(file)
-            self._fs.create(file, replica_factor = 3, chunk_size = 2 ** 25) #32m
+            self._fs.create(file, chunk_size = 2 ** 25) #32m
 
     def rm(self, args):
         files = args.files.split()
@@ -160,6 +160,9 @@ class FSShell:
         self._fs.mv(old_file, new_file)
 
     def set(self, args):
+        int_attrs = ['pw_workers']
+        if args.attr in int_attrs:
+            args.value = int(args.value)
         file = self._normpath(args.file)
         meta = self._fs.stat(file)
         self._fs.setattr(meta.id, {args.attr: args.value})
@@ -171,7 +174,7 @@ class FSShell:
         dest = self._normpath(args.file)
         sf = open(src, 'rb')
         if not self._fs.exists(dest):
-            self._fs.create(dest, replica_factor = 1, chunk_size = 2 ** 25)
+            self._fs.create(dest, chunk_size = 2 ** 25)
         df = self._fs.open(dest, 'a')
         buf_size = 2 ** 25 # 32M
         while True:
