@@ -158,11 +158,14 @@ class StorageService(Service):
                 self._chunks_map[key]['l'].add(did)
             else:
                 # Free old ones
-                old_chunk = chunk
-                old_chunk.version = old_version
+                old = Chunk()
+                old.fid, old.cid = key
+                old.version = old_version
                 for did in self._chunks_map[key]['l']:
-                    self._deleted_chunks.setdefault(did, []).append(old_chunk)
+                    self._deleted_chunks.setdefault(did, []).append(old)
+
                 # Save new
+                self._chunks_map[key]['v'] = chunk.version
                 self._chunks_map[key]['l'] = set([did])
 
         return True

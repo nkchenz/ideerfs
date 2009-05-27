@@ -47,9 +47,9 @@ class NLParser:
             else:
                 if not last_is_var:
                         regex +='\s*?' # eat spaces of two adjacent literals
-                regex += item 		
+                regex += item
                 last_is_var = False
-        regex += self.magic_ending 
+        regex += self.magic_ending
         #print regex, sentence
         r = re.match(regex, sentence)
         if not r:
@@ -61,8 +61,8 @@ class NLParser:
             if not v:
                 print '$%s is empty: %s' % (var, pattern)
                 return None
-            values[var] = v 
-            i += 1	
+            values[var] = v
+            i += 1 
         return values
 
     def parse(self, sentence):

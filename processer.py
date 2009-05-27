@@ -47,7 +47,7 @@ class Processer:
                 if self.next:
                     self.next.submit(result) # Pass result to the next processer
             except Exception, err:
-                debug('Bug found, processer unexcepted exception: %s, please restart me', err)
+                debug('Bug found in processer, unexcepted exception: %s, please restart me', err)
                 raise # Fixme: restart processer, should raise or just igore this silently?
 
     def processing(self, item):

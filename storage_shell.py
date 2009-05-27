@@ -130,6 +130,9 @@ class StorageShell:
         all       status of the global pool
         local     status of all local devs
         /data/sda status of a local dev
+        
+        id  # TODO: get disks info on remote chunk servers
+                    First lookup in local then in storage server
         """
         if args.path == 'local':
             for did, path in self._devices.items():
