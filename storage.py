@@ -185,6 +185,20 @@ class StorageService(Service):
         self._flush()
         return {'stale': stale}
 
+    def locate(self, req):
+        key = req.fid, req.cid
+        if key not in self._chunks_map:
+            self._error('No replica found')
+        
+        result = OODict()
+        result.version = self._chunks_map[key]['v']
+        result.locations = []
+        # Found avaiable devices
+        for did in self._chunks_map[key]['l']:
+            if self._available(did):
+                result.locations.append((did, self._devices[did].addr, self._devices[did].conf.path))
+        return result
+
     def search(self, req):
         """Search chunks locations
         
@@ -205,7 +219,7 @@ class StorageService(Service):
             
             version = self._chunks_map[key]['v']
             if chunk.version != version:
-                debug('version mismatch: %s %s', chunk, version)
+                debug('version mismatch: want %s, got %s', chunk, version)
                 continue # Version error
            
             # Found avaiable devices

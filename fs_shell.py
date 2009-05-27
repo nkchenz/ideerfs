@@ -23,7 +23,8 @@ class FSShell:
             'cd $dir': 'cd',
             'set $attr of $file to $value': 'set',
             'pwd': 'pwd',
-            'append $localfile $file': 'append'
+            'append $localfile $file': 'append',
+            'locate $file $cid': 'locate' 
             }
         self._fs = FileSystem()
 
@@ -180,3 +181,11 @@ class FSShell:
             df.write(data)
         sf.close()
         df.close()
+
+    def locate(self, args):
+        meta = self._fs.stat(self._normpath(args.file))
+        cid = int(args.cid)
+        info =  self._fs.locate_chunk(meta.id, cid)
+        print '%d.%d.%d on' % (meta.id, cid, info.version)
+        for l in info.locations:
+            print '    %40s %20s %s' % (l[0], l[1], l[2])

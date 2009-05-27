@@ -91,6 +91,9 @@ class FileSystem:
         """Alloc n new chunks"""
         return messager.call(config.storage_server_address, 'storage.alloc', size = size, n = n)
         
+    def locate_chunk(self, fid, cid):
+        return messager.call(config.storage_server_address, 'storage.locate', fid = fid, cid = cid)
+
     def publish_chunk(self, chunk, dids):
         return messager.call(config.storage_server_address, 'storage.publish', chunk = chunk, dids = dids)
 
