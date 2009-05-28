@@ -3,7 +3,7 @@
 from tf import *
 
 # init
-run('dd if=/dev/zero of=tmpdata.pw bs=1M count=33')
+run('dd if=/dev/zero of=tmpdata.pw bs=1M count=100')
 
 # run
 ish_batch('''
@@ -17,5 +17,5 @@ fs restore a1 tmpdata.pw2
 ''')
 
 #cleanup
-#ish('fs rm a1')
-#run('rm pw.tmp')
+ish('fs rm a1')
+run('rm -f tmpdata.*')

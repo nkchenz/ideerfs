@@ -113,8 +113,6 @@ class File:
         self._idle_queue = []
         self._idle_queue_cv = threading.Condition()
 
-        self._closing = False
-
         # If we get file meta here, what shall we do if meta changes in other threads?
         self.meta_lock =  thread.allocate_lock()
         self.meta = self.stat() # For unchangable attributes only
@@ -128,22 +126,33 @@ class File:
                 
     def close(self):
         """Close file, flush buffers"""
+        debug('file.close: flush...')
         self.flush()
-        # Tell all workers to exit, some workers maybe sleep right now, so need to
-        # feed somthing to wake them up
-        self._closing = True
-        for i in self._write_workers:
-            self._feed_worker(i, 'bye') # This arbitrary string will not be written
+
+        # i.data_cv is released before data written, so feed_worker will not
+        # wait for workers which are still working, main thread exits cause
+        # all workers exit
+
+        # Wait for all workers to finish their jobs
+        if self._write_workers:
+            debug('file.close: wait all workers')
+            self._idle_queue_cv.acquire()
+            while len(self._idle_queue) != len(self._write_workers):
+                self._idle_queue_cv.wait()
+            self._idle_queue_cv.release()
+        debug('file.close: done')
     
     def lock(self, range):
         # Before read and write, better get a lock 
         pass
     
     def flush(self):
+        if not self._write_buffer: # Empty buffer
+            return
         data = OODict()
         data.payload = self._write_buffer
         data.offset = self._write_buffer_offset
-        self._write_data(data)
+        self._write(data)
         self._clear_buffer()
 
     def stat(self):
@@ -231,14 +240,16 @@ class File:
             data = OODict()
             data.payload = self._write_buffer[start:end]
             data.offset = offset
+            self._write(data)
             
-            if 'pw_workers' in self.meta and self.meta.pw_workers > 1:
-                self._sched_write(data) # Use parallel thread write workers
-            else:
-                self._write_data(data)
-
         # All aligned
         self._clear_buffer()
+
+    def _write(self, data):
+        if 'pw_workers' in self.meta and self.meta.pw_workers > 1:
+            self._sched_write(data) # Use parallel thread write workers
+        else:
+            self._write_data(data)
 
     def _read_chunk(self, chunk, loca, offset, length):
         """Read chunk from replicas"""
@@ -254,9 +265,12 @@ class File:
      
     def _write_chunk(self, chunk, loca, offset, data, new):
         # Write chunk to data nodes
+        debug('file.write_chunk: chunk %s loca %s offset %d', chunk, loca, offset)
         dids = []
+        # TODO: only write to one location as master
         for did, addr in loca:
             try:
+                debug('file.write_chunk: write to %s %s', did, addr)
                 messager.call(addr, 'chunk.write', did = did, chunk = chunk, offset = offset, payload = data, new = new)
                 dids.append(did)
             except IOError, err:
@@ -264,6 +278,7 @@ class File:
         
         if not dids:
             raise IOError('data not written')
+        debug('file.write_chunk: data written chunk %s dids %s', chunk, dids)
         return dids
 
     def _clear_buffer(self):
@@ -308,8 +323,8 @@ class File:
             i.data_cv = threading.Condition()
             i.id = len(self._write_workers)
             self._write_workers.append(i)
-            #start new worker
-            thread.start_new_thread(self._write_worker, (i))
+            debug('start new worker %d', i.id)
+            thread.start_new_thread(self._write_worker, (i,))
         else:
             # Find a idle worker whose data is None, sleep until found   
             self._idle_queue_cv.acquire()
@@ -317,7 +332,7 @@ class File:
                 debug('no idle worker found, wait')
                 self._idle_queue_cv.wait()
             i = self._idle_queue.pop(0)
-            debug('idle worker %d found', i.id)
+            debug('worker %d idle', i.id)
             self._idle_queue_cv.release()
 
         self._feed_worker(i, data)
@@ -333,20 +348,15 @@ class File:
         """ # Every worker should has its own queue, better scale
         # If using global queue, thunder-herd problem?
         """
-        debug('write worker %d started', i.id)
         while True:
             i.data_cv.acquire()
             while not i.data:
                 i.data_cv.wait() # No data available, sleep
-            # Even we release the lock, it's impossible for main thread to 
+            # Even we release the lock, it's impossible for main thread to
             # feed us again, because we are not on the idle queue
             i.data_cv.release()
 
-            # Check for closing file
-            if self._closing:
-                break
-
-            debug('worker %d working', i.id)
+            debug('worker %d working: offset %d', i.id, i.data.offset)
             self._write_data(i.data)
             i.data = None
 
@@ -363,6 +373,7 @@ class File:
         """Write data.payload to data.offset in file, no chunk crossing """
         meta = self.meta
         length = len(data.payload)
+        debug('file.write_data: offset %d len %d', data.offset, length)
         chunks = self._fs.get_chunks(meta.id, data.offset, length)
         locations = self._fs.get_chunk_locations(chunks.exist_chunks)
         cid = chunks.first
