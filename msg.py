@@ -13,6 +13,7 @@ class Messager:
 
     def __init__(self):
         self._sockets = {}
+        self._locks = {} # Protect sockets
         self._connect_error_retry = 3
         self._send_error_retry = 3
         self._id = 0
@@ -37,6 +38,11 @@ class Messager:
         # How to detect socket errors? how to resend message and reconnect
         # socket?
         # Connect socket
+
+        if dest not in self._locks:
+            self._locks[dest] = thread.allocate_lock()
+        self._locks[dest].acquire()
+
         if dest not in self._sockets:
             self._connect(dest)
 
@@ -63,6 +69,7 @@ class Messager:
                 self._connect(dest)
                 # Only retry when connected, 
                 if retry >= self._send_error_retry:
+                    self._locks[dest].release()
                     raise exception.NoMoreRetryError('socket send error')
                 # Do not need sleep here
                 retry += 1
@@ -71,6 +78,8 @@ class Messager:
         # What if error happens while read answer? Should we retry?
         # Set a timer here to get ack
         resp = protocol.read_message(self._sockets[dest])
+        self._locks[dest].release()
+
         if 'error' in resp:
             raise exception.ResponseError(resp.error)
 
@@ -83,8 +92,17 @@ class Messager:
 
     def bye(self, addr):
         # Fixme: we should close connections which are inactive
+        # Conn:
+        #   socket
+        #   lock
+        #   ctime
+        #   mtime
+        # update mtime every call, and auto close conn which are inactive more than
+        # 300s?
         if addr in self._sockets:
             self._sockets[addr].close()
+            del self._sockets[dest]
+            del self._locks[dest]
 
 messager = Messager()
 
